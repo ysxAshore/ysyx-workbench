@@ -1,5 +1,2 @@
 *.bin
 *.elf
-/nvboard
-/fceux-am
-/am-kernels
