@@ -1,5 +1,5 @@
-#include <nvboard.h>
 #include <Vtop.h>
+#include <Vtop__Dpi.h>
 #include <verilated.h>
 #include "verilated_vcd_c.h"
 
@@ -7,8 +7,6 @@
 static TOP_NAME dut;
 VerilatedVcdC *tfp = new VerilatedVcdC;
 vluint64_t sim_time = 0;
-
-void nvboard_bind_all_pins(TOP_NAME *top);
 
 // 时钟边沿模拟，模拟了从低电平到高电平的时钟跳变
 static void single_cycle()
@@ -24,32 +22,43 @@ static void single_cycle()
 static void reset(int n)
 {
   dut.rst = 1;
-  // rst高电平复位 复位n个cycle
+  // rst电平复位 复位n个cycle
   while (n-- > 0)
     single_cycle();
   dut.rst = 0;
 }
 
+static bool isFinish = false;
+void callEbreak()
+{
+  isFinish = true;
+}
+
 int main(int argc, const char *argv[])
 {
-  // 初始化波形
+  uint32_t inst[] = {
+      0x02a00293,
+      0x00000293,
+      0xf8000333,
+      0x07b00013,
+      0x00450513,
+      0x00100073,
+      0xdeadbeef};
+
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
   dut.trace(tfp, 99);
   tfp->open("wave.vcd");
 
-  // 绑定引脚
-  nvboard_bind_all_pins(&dut);
-  // 初始化NVBoard
-  nvboard_init();
-  // reset 10个时钟周期
   reset(10);
 
   while (1)
   {
-    // 更新NVBoard中各组件的状态和clk信号,重新计算电路状态
-    nvboard_update();
+    // dut.inst迟一拍 是在下降沿才更新
+    dut.inst = *(uint32_t *)((uint8_t *)inst + dut.pc - 0x80000000);
     single_cycle();
+    if (isFinish)
+      break;
   }
   tfp->close();
 }

@@ -1,5 +1,4 @@
 TOPNAME = top
-NXDC_FILES = constr/top.nxdc
 INC_PATH ?=
 
 VERILATOR = verilator
@@ -13,18 +12,11 @@ default: $(BIN)
 
 $(shell mkdir -p $(BUILD_DIR))
 
-SRC_AUTO_BIND = $(abspath $(BUILD_DIR)/auto_bind.cpp)
-$(SRC_AUTO_BIND): $(NXDC_FILES)
-	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
-
 VSRCS = $(shell find $(abspath ./vsrc) -name "*.v")
 CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*.cpp") 
-CSRCS += $(SRC_AUTO_BIND) 
-
-include $(NVBOARD_HOME)/scripts/nvboard.mk
 
 INCFLAGS = $(addprefix -I, $(INC_PATH))
-CXXFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
+CXXFLAGS += -g $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
 
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 	@rm -rf $(OBJ_DIR)
@@ -37,3 +29,7 @@ all: default
 
 run: $(BIN)
 	@$^
+
+clean :
+	-rm -r ./build
+.PHONY: clean
