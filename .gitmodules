@@ -1,0 +1,6 @@
+[submodule "am-kernels/tests/riscv-test-am"]
+	path = am-kernels/tests/riscv-test-am
+	url = https://github.com/NJU-ProjectN/riscv-tests-am
+[submodule "am-kernels/tests/riscv-arch-test-am"]
+	path = am-kernels/tests/riscv-arch-test-am
+	url = https://github.com/NJU-ProjectN/riscv-arch-test-am
