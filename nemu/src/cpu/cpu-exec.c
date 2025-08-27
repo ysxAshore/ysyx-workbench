@@ -24,6 +24,8 @@
  * You can modify this value as you want.
  */
 #define MAX_INST_TO_PRINT 10
+char *iringbuf[MAX_INST_TO_PRINT];
+static int header = 0;
 
 CPU_state cpu = {};
 uint64_t g_nr_guest_inst = 0;
@@ -32,6 +34,22 @@ static bool g_print_step = false;
 
 void device_update();
 void checkWatchPoint();
+void printFtrace();
+
+void printIringBuf()
+{
+  int errorIndex = header - 1 < 0 ? MAX_INST_TO_PRINT - 1 : header - 1;
+  for (int i = 0; i < MAX_INST_TO_PRINT; ++i)
+  {
+    if (i == errorIndex)
+    {
+      printf("\033[1;31;40m--> \033[0m");
+      printf("\033[1;31;40m%s\n\033[0m", iringbuf[i]);
+    }
+    else
+      printf("    %s\n", iringbuf[i]);
+  }
+}
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc)
 {
@@ -81,6 +99,11 @@ static void exec_once(Decode *s, vaddr_t pc)
   void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
   disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
               MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst, ilen);
+  iringbuf[header] = (char *)realloc(iringbuf[header], strlen(s->logbuf) + 1);
+  strcpy(iringbuf[header], s->logbuf);
+  ++header;
+  if (header == MAX_INST_TO_PRINT)
+    header = 0;
 #endif
 }
 
@@ -146,6 +169,11 @@ void cpu_exec(uint64_t n)
 
   case NEMU_END:
   case NEMU_ABORT:
+#ifdef CONFIG_ITRACE
+    if (nemu_state.halt_ret != 0)
+      printIringBuf();
+#endif
+    IFDEF(CONFIG_FTRACE, printFtrace());
     Log("nemu: %s at pc = " FMT_WORD,
         (nemu_state.state == NEMU_ABORT ? ANSI_FMT("ABORT", ANSI_FG_RED) : (nemu_state.halt_ret == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN) : ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))),
         nemu_state.halt_pc);

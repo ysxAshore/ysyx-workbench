@@ -69,7 +69,10 @@ enum
     *imm = (SEXT(BITS(i, 31, 31), 1) << 12) | BITS(i, 30, 25) << 5 | BITS(i, 11, 8) << 1 | BITS(i, 7, 7) << 11; \
   } while (0) // 只用一次SEXT
 
-static void decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_t *imm, int type)
+void insertFtraceNode(int callType, vaddr_t from_pc, vaddr_t to_pc);
+
+static void
+decode_operand(Decode *s, int *rd, word_t *src1, word_t *src2, word_t *imm, int type)
 {
   uint32_t i = s->isa.inst;
   int rs1 = BITS(i, 19, 15);
@@ -128,6 +131,14 @@ word_t mulhsu(sword_t a, word_t b)
   if (neg)
     res = -res;
   return (word_t)(res >> 32);
+}
+
+void insertFtrace(int rd, word_t imm, int rs1, word_t pc, word_t dnpc)
+{
+  if (rd == 1)
+    insertFtraceNode(0, pc, dnpc);
+  else if (rd == 0 && imm == 0 && rs1 == 1)
+    insertFtraceNode(1, pc, dnpc);
 }
 
 static int decode_exec(Decode *s)
@@ -195,8 +206,8 @@ static int decode_exec(Decode *s)
   INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge, B, s->dnpc = ((sword_t)src1 >= (sword_t)src2) ? s->pc + imm : s->dnpc);
   INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu, B, s->dnpc = (src1 < src2) ? s->pc + imm : s->dnpc);
   INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu, B, s->dnpc = (src1 >= src2) ? s->pc + imm : s->dnpc);
-  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr, I, s->dnpc = (src1 + imm) & ~1, R(rd) = s->snpc);
-  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal, J, s->dnpc = s->pc + imm, R(rd) = s->snpc);
+  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr, I, s->dnpc = (src1 + imm) & ~1, R(rd) = s->snpc, insertFtrace(rd, imm, BITS(s->isa.inst, 19, 15), s->pc, s->dnpc));
+  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal, J, s->dnpc = s->pc + imm, R(rd) = s->snpc, insertFtrace(rd, imm, BITS(s->isa.inst, 19, 15), s->pc, s->dnpc));
 
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak, N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
