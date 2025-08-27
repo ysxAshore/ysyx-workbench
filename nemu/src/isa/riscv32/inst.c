@@ -135,10 +135,12 @@ word_t mulhsu(sword_t a, word_t b)
 
 void insertFtrace(int rd, word_t imm, int rs1, word_t pc, word_t dnpc)
 {
+#ifdef CONFIG_FTRACE
   if (rd == 1)
     insertFtraceNode(0, pc, dnpc);
   else if (rd == 0 && imm == 0 && rs1 == 1)
     insertFtraceNode(1, pc, dnpc);
+#endif
 }
 
 static int decode_exec(Decode *s)
