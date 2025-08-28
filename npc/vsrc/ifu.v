@@ -1,16 +1,30 @@
-module ifu #(DATA_WIDTH = 32)(
-  input clk,
-  input rst,
-  output reg [DATA_WIDTH - 1 : 0] pc
+module ifu #(parameter ADDR_WIDTH = 32, DATA_WIDTH = 32)(
+	input                           clk,
+	input                           rst,
+	input      [ADDR_WIDTH - 1 : 0] dnpc,
+	output reg [DATA_WIDTH - 1 : 0] inst,
+	output reg [ADDR_WIDTH - 1 : 0] fectch_pc
 );
-  wire [DATA_WIDTH - 1 : 0] snpc;
-  assign snpc = pc + 'h4;
 
-  always @(posedge clk)begin
-    if(rst)
-      pc <= 'h8000_0000;
-    else 
-      pc <= snpc;
+	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] mem_read(input bit[ADDR_WIDTH - 1 : 0] raddr);
+  reg rst_done;
+
+  always @(posedge clk or posedge rst) begin
+    if (rst) begin
+      fectch_pc <= 'h8000_0000;
+      inst      <= 'h0000_0013;   // NOP
+      rst_done  <= 'b0;
+    end else begin
+      if (!rst_done) begin
+        // 复位后的第一个周期,取指8000_0000
+        rst_done  <= 'b1;
+        inst      <= mem_read('h8000_0000);
+      end else begin
+        // 正常取指
+        fectch_pc <= dnpc;
+        inst      <= mem_read(dnpc);
+      end
+    end
   end
 
 endmodule
