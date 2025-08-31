@@ -120,7 +120,7 @@ int vsprintf(char *out, const char *fmt, va_list ap)
       {
         int base = 0;
         bool upper = false, issigned = false;
-        uint64_t temp;
+        uint64_t temp = 0;
         switch (spec)
         {
         case 'd':
@@ -179,8 +179,12 @@ int vsprintf(char *out, const char *fmt, va_list ap)
           break;
         case 's':
           char *tmp_s = va_arg(ap, char *);
-          while ((*p++ = *tmp_s++))
-            ;
+          // 下面这样 会复制一个\0 导致提前结束
+          // while ((*p++ = *tmp_s++))
+          //   ;
+          while (*tmp_s)
+            *p++ = *tmp_s++;
+
           break;
         default:
           *p++ = spec;
