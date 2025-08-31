@@ -1,5 +1,6 @@
 module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	input 							clk,
+	input 							rst,
 	input [		ADDR_WIDTH - 1 : 0] pc,
 	input [		DATA_WIDTH - 1 : 0] inst,
 
@@ -117,6 +118,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 		.DATA_WIDTH(DATA_WIDTH)
 	)regFile(
 		.clk(clk),
+		.rst(rst),
 		.wen(w_regW),
 		.wdata(w_regData),
 		.waddr(w_regAddr),
@@ -200,15 +202,21 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	assign store_data = regData2;
 
 	//DPI-C recongnize the ebreak ,then notice the sim terminate
-	import "DPI-C" function void callEbreak(input bit[DATA_WIDTH - 1 : 0] retval, input bit[ADDR_WIDTH - 1 : 0] pc);
-	always@(clk)begin //在ebreak上升沿时 pc和regData1都是上个指令的 因此需要在下降沿
-		if(ebreak)
-			callEbreak(regData1,pc);
+	import "DPI-C" function void execEbreak(input bit[ADDR_WIDTH - 1 : 0] pc, input bit[DATA_WIDTH - 1 : 0] retval);
+	import "DPI-C" function void execInv(input bit[ADDR_WIDTH - 1 : 0]pc);
+	always @(posedge clk) begin
+		if(ebreak && ~rst)
+			execEbreak(pc,regData1);
+	end
+	always @(posedge clk) begin
+		if(inv && ~rst)
+			execInv(pc);
 	end
 endmodule
 
 module RegisterFile #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32) (
   input 						 clk,
+  input 						 rst,
   input 						 wen,
   input  [DATA_WIDTH - 1    : 0] wdata,
   input  [REG_ADDR_WIDTH -1 : 0] waddr,
@@ -218,8 +226,22 @@ module RegisterFile #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32) (
   output [DATA_WIDTH     -1 : 0] rdata2
 );
   reg [DATA_WIDTH - 1 : 0] rf [1 << REG_ADDR_WIDTH - 1 : 0];
-  always @(posedge clk) begin
-    if (wen) rf[waddr] <= wdata;
+  logic [DATA_WIDTH-1:0] temp_rf [0 : 1 << REG_ADDR_WIDTH - 1];
+
+  integer i;
+  import "DPI-C" function void recordRegs(input logic [DATA_WIDTH-1:0] dut_regs [1 << REG_ADDR_WIDTH - 1:0]);
+  always @(posedge clk or posedge rst) begin
+	if(~rst) begin
+    	if (wen) begin
+			rf[waddr] <= wdata;
+		end
+		// 	创建一个带有更新内容的副本
+		temp_rf[0] = {DATA_WIDTH{1'b0}};
+    	for (i = 1; i < (1 << REG_ADDR_WIDTH); i = i + 1)
+    		temp_rf[i] = (i[REG_ADDR_WIDTH - 1:0] == waddr && wen) ? wdata : rf[i];
+    	// 调用 recordRegs，传入的是更新后的数组
+    	recordRegs(temp_rf);
+	end
   end
 
   assign rdata1 = raddr1 == 0 ? 'b0 : rf[raddr1];

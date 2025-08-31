@@ -1,2 +1,5 @@
 build/
 *.vcd
+.config*
+include/config 
+include/generated

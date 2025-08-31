@@ -1,9 +1,9 @@
 module top(
-	input 		  clk,
-	input         rst,
+	input 		  clock,
+	input         reset,
 	output [31:0] inst,
-	output [31:0] pc,
-	output [31:0] dnpc
+	output [31:0] dnpc,
+	output [31:0] pc
 );
 
 	localparam ADDR_WIDTH = 32;
@@ -14,8 +14,8 @@ module top(
   	  .ADDR_WIDTH(ADDR_WIDTH),
   	  .DATA_WIDTH(DATA_WIDTH)
   	)if_stage(
-		.clk(clk),
-		.rst(rst),
+		.clk(clock),
+		.rst(reset),
 		.fectch_pc(pc),
 		.inst(inst),
 		.dnpc(dnpc)
@@ -39,7 +39,8 @@ module top(
 		.DATA_WIDTH(DATA_WIDTH),
 		.ADDR_WIDTH(ADDR_WIDTH)
 	)id_stage(
-		.clk(clk),
+		.clk(clock),
+		.rst(reset),
 		.inst(inst),
 		.pc(pc),
 		.aluSrc1(aluSrc1),
@@ -68,7 +69,7 @@ module top(
 		.REG_ADDR_WIDTH(REG_ADDR_WIDTH),
 		.DATA_WIDTH(DATA_WIDTH)
 	)exe_stage(
-		.clk(clk),
+		.clk(clock),
 		.aluSrc1(aluSrc1),
 		.aluSrc2(aluSrc2),
 		.aluOp(aluOp),
@@ -93,7 +94,7 @@ module top(
 		.DATA_WIDTH(DATA_WIDTH),
 		.ADDR_WIDTH(ADDR_WIDTH)
 	)mem_stage(
-		.clk(clk),
+		.clk(clock),
 		.e_regW(e_regW),
 		.e_regAddr(e_regAddr),
 		.e_regData(e_regData),
