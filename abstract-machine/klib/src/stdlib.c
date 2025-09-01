@@ -60,9 +60,8 @@ void *malloc(size_t size)
   assert((uintptr_t)heap.start <= hbrk && hbrk < (uintptr_t)heap.end); // 不超过heap范围
   memset(old, 0, size);
   return old;
-#else
-  return NULL;
 #endif
+  return NULL;
 }
 
 void free(void *ptr)
