@@ -7,11 +7,6 @@ menuconfig DEVICE
 
 if DEVICE
 
-config HAS_PORT_IO
-  bool
-  default y if ISA_x86
-  default n
-
 menuconfig HAS_SERIAL
   bool "Enable serial"
   default y

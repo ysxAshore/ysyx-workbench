@@ -9,7 +9,7 @@ module ifu #(parameter ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] inst_fetch(input bit[ADDR_WIDTH - 1 : 0] raddr);
   reg rst_done;
 
-  always @(posedge clk or posedge rst) begin
+  always @(posedge clk) begin
     if (rst) begin
       fectch_pc <= 'h8000_0000;
       inst      <= 'h0000_0013;   // NOP

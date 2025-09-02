@@ -230,11 +230,16 @@ module RegisterFile #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32) (
 
   integer i;
   import "DPI-C" function void recordRegs(input logic [DATA_WIDTH-1:0] dut_regs [1 << REG_ADDR_WIDTH - 1:0]);
-  always @(posedge clk or posedge rst) begin
+  always @(posedge clk) begin
 	if(~rst) begin
     	if (wen) begin
 			rf[waddr] <= wdata;
 		end
+	end
+  end
+
+  always @(wen or wdata or waddr) begin
+	if(~rst) begin
 		// 	创建一个带有更新内容的副本
 		temp_rf[0] = {DATA_WIDTH{1'b0}};
     	for (i = 1; i < (1 << REG_ADDR_WIDTH); i = i + 1)

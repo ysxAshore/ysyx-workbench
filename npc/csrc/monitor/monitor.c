@@ -5,7 +5,6 @@ void init_rand();
 void init_log(const char *log_file);
 void init_mem();
 void init_difftest(char *ref_so_file, long img_size, int port);
-void init_device();
 void init_sdb();
 void init_disasm();
 void init_ftrace(const char *elf_file);
@@ -120,9 +119,6 @@ void init_monitor(int argc, char *argv[])
     /* Initialize memory. */
     init_mem();
 
-    /* Initialize devices. */
-    IFDEF(CONFIG_DEVICE, init_device());
-
     /* Initialize ftrace list and symbol table. */
     IFDEF(CONFIG_FTRACE, init_ftrace(elf_file));
 
@@ -133,7 +129,7 @@ void init_monitor(int argc, char *argv[])
     long img_size = load_img();
 
     /* Initialize differential testing. */
-    init_difftest(diff_so_file, img_size, difftest_port);
+    IFDEF(CONFIG_DIFFTEST, init_difftest(diff_so_file, img_size, difftest_port));
 
     /* Initialize the simple debugger. */
     init_sdb();
@@ -159,7 +155,6 @@ void am_init_monitor()
     init_mem();
     init_isa();
     load_img();
-    IFDEF(CONFIG_DEVICE, init_device());
     welcome();
 }
 #endif

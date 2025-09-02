@@ -52,7 +52,7 @@ static void trace_and_difftest()
     if (g_print_step)
         puts(logbuf);
 #endif
-    IFDEF(CONFIG_DIFFTEST, difftest_step(cpu.pc, dut.dnpc));
+    IFDEF(CONFIG_DIFFTEST, difftest_step(cpu.pc, cpu.dnpc));
     IFDEF(CONFIG_WATCHPOINT, checkWatchPoint());
 }
 
@@ -80,7 +80,7 @@ void assert_fail_msg()
     statistic();
 }
 
-static bool hasReset = false;
+static bool exec_exit = false;
 static void exec_once()
 {
     while (!Verilated::gotFinish())
@@ -89,20 +89,21 @@ static void exec_once()
         ++sim_time;
         if (sim_time % (clk_period / 2) == 0)
         {
-            cpu.pc = dut.pc;
-            cpu.dnpc = dut.dnpc;
-            cpu.inst = dut.inst;
-
             dut.clock = !dut.clock;
 
-            if (dut.clock && hasReset) // 第一次的不退出 因为可能会trace 复位时的nop
+            if (dut.clock) // 第一次的不退出 因为可能会trace 复位时的nop
             {
                 dut.eval();
-                DUMP_VCD();
+                cpu.pc = dut.pc;
+                cpu.dnpc = dut.dnpc;
+                cpu.inst = dut.inst;
+                exec_exit = true;
+            }
+            if (exec_exit && !dut.clock)
+            {
+                exec_exit = false;
                 break;
             }
-            else if (dut.clock)
-                hasReset = true;
         }
         dut.eval();
 
@@ -145,7 +146,7 @@ static void execute(uint64_t n)
         trace_and_difftest();
         if (npc_state.state != NPC_RUNNING)
             break;
-        IFDEF(CONFIG_DEVICE, device_update());
+        // IFDEF(CONFIG_DEVICE, device_update());
     }
 }
 

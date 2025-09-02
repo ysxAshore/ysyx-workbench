@@ -117,6 +117,11 @@ config FTRACE
   bool "Enable function call or return trace"
   default n
 
+config DTRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable device read or write tracer"
+  default n
+
 config WATCHPOINT
   depends on TARGET_NATIVE_ELF
   bool "Enable the debug function--watchpoint"
@@ -182,5 +187,9 @@ endchoice
 config RT_CHECK
   bool "Enable runtime checking"
   default y
+
+config TIME_ZONE
+  int "The location time-zone"
+  default 8
 
 endmenu

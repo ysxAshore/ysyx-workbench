@@ -2,8 +2,8 @@
 #include <memory/paddr.h>
 
 TOP_NAME dut;
-int clk_period = 20;         // 时钟周期 10个仿真时间单位
-static int reset_cycles = 5; // 复位持续周期数
+int clk_period = 20;        // 时钟周期 10个仿真时间单位
+static int reset_time = 33; // 复位时间
 vluint64_t sim_time = 0;
 #ifdef CONFIG_VCD
 VerilatedVcdC *tfp;
@@ -32,8 +32,8 @@ void restart()
     dut.clock = 0;
     dut.reset = 1;
 
-    // 复位保持 reset_cycles 个时钟周期
-    for (sim_time = 0; sim_time < reset_cycles * clk_period; ++sim_time)
+    // 复位保持resertime
+    for (sim_time = 0; sim_time < reset_time; ++sim_time)
     {
         Verilated::timeInc(1000);
         // 每半个周期翻转一次时钟

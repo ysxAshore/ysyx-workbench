@@ -144,11 +144,15 @@ void init_monitor(int argc, char *argv[])
   /* Perform ISA dependent initialization. */
   init_isa();
 
-  /* Load the image to memory. This will overwrite the built-in image. */
+/* Load the image to memory. This will overwrite the built-in image. */
+#ifdef CONFIG_DIFFTEST
   long img_size = load_img();
+#else
+  load_img();
+#endif
 
   /* Initialize differential testing. */
-  init_difftest(diff_so_file, img_size, difftest_port);
+  IFDEF(CONFIG_DIFFTEST, init_difftest(diff_so_file, img_size, difftest_port));
 
   /* Initialize the simple debugger. */
   init_sdb();
