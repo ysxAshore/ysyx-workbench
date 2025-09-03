@@ -70,3 +70,14 @@ __am_asm_trap:
 
   addi sp, sp, CONTEXT_SIZE
   mret
+
+.globl __am_asm_helper
+__am_asm_helper:
+  addi sp, sp, -8 # saved $t0
+  STORE t0, 0(sp)
+  mv t0, a0 # 原来的a0保存entry 
+  mv a0, a1 # 原来的a1保存的是参数 这里放在a1
+  jalr ra, 0(t0)
+  LOAD t0, 0(sp)
+  addi sp, sp, 8
+  ret
