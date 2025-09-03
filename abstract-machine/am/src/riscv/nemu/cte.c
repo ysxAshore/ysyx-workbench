@@ -42,7 +42,20 @@ bool cte_init(Context *(*handler)(Event, Context *))
 
 Context *kcontext(Area kstack, void (*entry)(void *), void *arg)
 {
-  return NULL;
+  Context *cp = (Context *)(kstack.end - sizeof(Context));
+
+  // 设置cp
+  // 1. cp->mstatus
+#ifdef __riscv_e
+  cp->mstatus = 0x1800;
+#else
+  cp->mstatus = 0xa0001800;
+#endif
+  // 2. cp->mepc
+  cp->mepc = (uintptr_t)entry - 0x4; // 陷入指令会给mepc+0x4 从而设置进程的起始PC
+  // 3. 设置参数 a0~a7存放参数 a0~a1存放返回值
+  cp->gpr[10] = (uintptr_t)arg;
+  return cp;
 }
 
 void yield()
