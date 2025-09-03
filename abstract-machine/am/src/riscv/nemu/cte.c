@@ -40,7 +40,7 @@ bool cte_init(Context *(*handler)(Event, Context *))
   return true;
 }
 
-extern void __am_asm_helper(void);
+extern void __am_asm_helper(uintptr_t entry, uintptr_t arg);
 Context *kcontext(Area kstack, void (*entry)(void *), void *arg)
 {
   Context *cp = (Context *)(kstack.end - sizeof(Context));
