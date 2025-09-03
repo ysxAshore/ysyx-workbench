@@ -204,11 +204,11 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	//DPI-C recongnize the ebreak ,then notice the sim terminate
 	import "DPI-C" function void execEbreak(input bit[ADDR_WIDTH - 1 : 0] pc, input bit[DATA_WIDTH - 1 : 0] retval);
 	import "DPI-C" function void execInv(input bit[ADDR_WIDTH - 1 : 0]pc);
-	always @(posedge clk) begin
+	always @(ebreak) begin
 		if(ebreak && ~rst)
 			execEbreak(pc,regData1);
 	end
-	always @(posedge clk) begin
+	always @(inv) begin
 		if(inv && ~rst)
 			execInv(pc);
 	end
