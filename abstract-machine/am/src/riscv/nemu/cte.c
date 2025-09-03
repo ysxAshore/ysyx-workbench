@@ -2,13 +2,22 @@
 #include <riscv/riscv.h>
 #include <klib.h>
 
-static Context* (*user_handler)(Event, Context*) = NULL;
+static Context *(*user_handler)(Event, Context *) = NULL;
 
-Context* __am_irq_handle(Context *c) {
-  if (user_handler) {
+Context *__am_irq_handle(Context *c)
+{
+  if (user_handler)
+  {
     Event ev = {0};
-    switch (c->mcause) {
-      default: ev.event = EVENT_ERROR; break;
+    switch (c->mcause)
+    {
+    case 0xb:
+      ev.event = EVENT_YIELD;
+      break;
+      ;
+    default:
+      ev.event = EVENT_ERROR;
+      break;
     }
 
     c = user_handler(ev, c);
@@ -20,8 +29,9 @@ Context* __am_irq_handle(Context *c) {
 
 extern void __am_asm_trap(void);
 
-bool cte_init(Context*(*handler)(Event, Context*)) {
-  // initialize exception entry
+bool cte_init(Context *(*handler)(Event, Context *))
+{
+  // initialize exception entry 将异常程序服务地址入口 写入mtvec
   asm volatile("csrw mtvec, %0" : : "r"(__am_asm_trap));
 
   // register event handler
@@ -30,21 +40,26 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
   return true;
 }
 
-Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
+Context *kcontext(Area kstack, void (*entry)(void *), void *arg)
+{
   return NULL;
 }
 
-void yield() {
+void yield()
+{
+  // 这里不应该是-1 在M-mode下 yield的cause是0xb
 #ifdef __riscv_e
-  asm volatile("li a5, -1; ecall");
+  asm volatile("li a5, 0xb; ecall");
 #else
-  asm volatile("li a7, -1; ecall");
+  asm volatile("li a7, 0xb; ecall");
 #endif
 }
 
-bool ienabled() {
+bool ienabled()
+{
   return false;
 }
 
-void iset(bool enable) {
+void iset(bool enable)
+{
 }

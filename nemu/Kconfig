@@ -166,6 +166,11 @@ config DTRACE
   bool "Enable device read or write tracer"
   default n
 
+config ETRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable exception tracer"
+  default n
+
 config WATCHPOINT
   depends on TARGET_NATIVE_ELF
   bool "Enable the debug function--watchpoint"
