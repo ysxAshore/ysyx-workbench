@@ -2,9 +2,10 @@
 #include <klib.h>
 #include <rtthread.h>
 
-bool has_from;
-Context *from_context;
-Context *to_context;
+// 使用全局变量保存
+// bool has_from;
+// Context *from_context;
+// Context *to_context;
 
 typedef struct
 {
@@ -18,9 +19,16 @@ static Context *ev_handler(Event e, Context *c)
   switch (e.event)
   {
   case EVENT_YIELD:
-    if (has_from)
-      from_context = c;
-    c = to_context;
+    // if (has_from)
+    //   from_context = c;
+    // c = to_context;
+    Context **context = (Context **)rt_thread_self()->user_data;
+    if (context[0])
+      context[0] = c;
+    c = context[1];
+    break;
+  case EVENT_IRQ_TIMER:
+    // native默认开启中断 因此需要支持timer 目前不处理即可
     break;
   default:
     printf("Unhandled event ID = %d\n", e.event);
@@ -36,16 +44,48 @@ void __am_cte_init()
 
 void rt_hw_context_switch_to(rt_ubase_t to)
 {
-  to_context = *(Context **)to;
-  has_from = false;
+  //  to_context = *(Context **)to;
+  //  has_from = false;
+  //  yield();
+
+  // 使用PCB中的user_data
+  rt_thread_t pcb = rt_thread_self();
+  rt_ubase_t prev_data = pcb->user_data;
+
+  // 构造Context *数组 和之前使用malloc分配thread_args_t一样 这里不能malloc 只能静态数组
+  Context *context[2];
+  context[0] = NULL;
+  context[1] = *(Context **)to;
+
+  // 将Context *数组地址保存在user_data
+  pcb->user_data = (rt_ubase_t)context;
   yield();
+
+  // 恢复
+  pcb->user_data = prev_data;
 }
 
 void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to)
 {
-  from_context = *(Context **)from;
-  to_context = *(Context **)to;
+  // from_context = *(Context **)from;
+  // to_context = *(Context **)to;
+  // yield();
+
+  // 使用PCB中的user_data
+  rt_thread_t pcb = rt_thread_self();
+  rt_ubase_t prev_data = pcb->user_data;
+
+  // 构造Context *数组 和之前使用malloc分配thread_args_t一样 这里不能malloc 只能静态数组
+  Context *context[2];
+  context[0] = *(Context **)from;
+  context[1] = *(Context **)to;
+
+  // 将Context *数组地址保存在user_data
+  pcb->user_data = (rt_ubase_t)context;
   yield();
+
+  // 恢复
+  pcb->user_data = prev_data;
 }
 
 void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread)
