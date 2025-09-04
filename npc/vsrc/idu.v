@@ -241,6 +241,19 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 		if(inv && ~rst)
 			execInv(pc);
 	end
+
+`ifdef FTRACE
+	import "DPI-C" function void insertFtrace(int callType, bit[ADDR_WIDTH - 1 : 0] from_pc, bit[ADDR_WIDTH - 1 : 0] to_pc);
+	always@(jal or rd or immJ or rs1)begin
+		if(jal && rd == 0 && immJ == 0 && rs1 == 1) begin
+			insertFtrace(1, pc, jal_pc);
+		end else if(jalr && rd == 0 && immI == 0 && rs1 == 1) begin
+			insertFtrace(1, pc, jalr_pc);		
+		end else if((jal || jalr) && rd == 1) begin
+			insertFtrace(0, pc, {32{jal}} & jal_pc | {32{jalr}} & jalr_pc);
+		end
+	end
+`endif
 endmodule
 
 module RegisterFile #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32) (

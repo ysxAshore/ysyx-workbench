@@ -1,5 +1,6 @@
 #include <utils.h>
 #include <elf.h>
+#include _HDR(TOP_NAME, __Dpi)
 
 // 记录每一个函数名称以及起始地址和函数大小
 typedef struct funcSymNode
@@ -238,4 +239,9 @@ void printFtrace()
             stack->next = q;
         }
     }
+}
+
+extern "C" void insertFtrace(int callType, const svBitVecVal *from_pc, const svBitVecVal *to_pc)
+{
+    insertFtraceNode(callType, *from_pc, *to_pc);
 }

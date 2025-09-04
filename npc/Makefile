@@ -35,9 +35,20 @@ ARGS_DIFF = -d $(call remove_quote,$(CONFIG_DIFFTEST_REF_PATH))
 endif
 
 INC_PATH ?=
+
+ifdef CONFIG_RVE
+VERILATOR_MACRO = -DUSE_RVE=1
+else
+VERILATOR_MACRO =
+endif
+
+ifdef CONFIG_FTRACE
+VERILATOR_MACRO += -DFTRACE=1
+else
+endif
 VERILATOR_CFLAGS += -MMD --build -cc --exe --trace\
 				-O3 --x-assign fast --x-initial fast --noassert\
-				-DUSE_RVE=$(CONFIG_RVE)\
+				$(VERILATOR_MACRO)\
 
 # Include rules for menuconfig
 include $(NPC_HOME)/scripts/config.mk
