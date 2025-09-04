@@ -36,7 +36,8 @@ endif
 
 INC_PATH ?=
 VERILATOR_CFLAGS += -MMD --build -cc --exe --trace\
-				-O3 --x-assign fast --x-initial fast --noassert
+				-O3 --x-assign fast --x-initial fast --noassert\
+				-DUSE_RVE=$(CONFIG_RVE)\
 
 # Include rules for menuconfig
 include $(NPC_HOME)/scripts/config.mk

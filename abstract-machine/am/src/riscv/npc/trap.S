@@ -31,7 +31,7 @@ f(30) f(31)
 #define PUSH(n) STORE concat(x, n), (n * XLEN)(sp);
 #define POP(n)  LOAD  concat(x, n), (n * XLEN)(sp);
 
-#define CONTEXT_SIZE  ((NR_REGS + 3 + 1) * XLEN)
+#define CONTEXT_SIZE  ((NR_REGS + 3) * XLEN)
 #define OFFSET_SP     ( 2 * XLEN)
 #define OFFSET_CAUSE  ((NR_REGS + 0) * XLEN)
 #define OFFSET_STATUS ((NR_REGS + 1) * XLEN)
@@ -54,6 +54,7 @@ __am_asm_trap:
 
   mv a0, sp
   call __am_irq_handle
+  mv sp, a0 # 返回的进程的上下文栈地址是在a0
 
   LOAD t1, OFFSET_STATUS(sp)
   LOAD t2, OFFSET_EPC(sp)
@@ -64,3 +65,14 @@ __am_asm_trap:
 
   addi sp, sp, CONTEXT_SIZE
   mret
+
+.globl __am_asm_helper
+__am_asm_helper:
+  addi sp, sp, -8 # saved $t0
+  STORE t0, 0(sp)
+  mv t0, a0 # 原来的a0保存entry 
+  mv a0, a1 # 原来的a1保存的是参数 这里放在a1
+  jalr ra, 0(t0)
+  LOAD t0, 0(sp)
+  addi sp, sp, 8
+  ret

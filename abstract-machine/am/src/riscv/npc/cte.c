@@ -2,13 +2,22 @@
 #include <riscv/riscv.h>
 #include <klib.h>
 
-static Context* (*user_handler)(Event, Context*) = NULL;
+static Context *(*user_handler)(Event, Context *) = NULL;
 
-Context* __am_irq_handle(Context *c) {
-  if (user_handler) {
+Context *__am_irq_handle(Context *c)
+{
+  if (user_handler)
+  {
     Event ev = {0};
-    switch (c->mcause) {
-      default: ev.event = EVENT_ERROR; break;
+    switch (c->mcause)
+    {
+    case 0xb:
+      ev.event = EVENT_YIELD;
+      break;
+      ;
+    default:
+      ev.event = EVENT_ERROR;
+      break;
     }
 
     c = user_handler(ev, c);
@@ -20,7 +29,8 @@ Context* __am_irq_handle(Context *c) {
 
 extern void __am_asm_trap(void);
 
-bool cte_init(Context*(*handler)(Event, Context*)) {
+bool cte_init(Context *(*handler)(Event, Context *))
+{
   // initialize exception entry
   asm volatile("csrw mtvec, %0" : : "r"(__am_asm_trap));
 
@@ -30,21 +40,42 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
   return true;
 }
 
-Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
-  return NULL;
+extern void __am_asm_helper(uintptr_t entry, uintptr_t arg);
+Context *kcontext(Area kstack, void (*entry)(void *), void *arg)
+{
+  Context *cp = (Context *)(kstack.end - sizeof(Context));
+
+  // 设置cp
+  // 1. cp->mstatus
+#ifdef __riscv_e
+  cp->mstatus = 0x1800;
+#else
+  cp->mstatus = 0xa0001800;
+#endif
+  // 2. cp->mepc
+  // cp->mepc = (uintptr_t)entry; //直接跳转到入口
+  cp->mepc = (uintptr_t)__am_asm_helper - 0x4; // 陷入指令会给mepc+0x4 从而设置进程的起始PC
+  // 3. 设置参数 a0~a7存放参数 a0~a1存放返回值
+  // cp->gpr[10] = (uintptr_t)arg; //直接跳到entry的只需要保存一个参数
+  cp->gpr[10] = (uintptr_t)entry;
+  cp->gpr[11] = (uintptr_t)arg;
+  return cp;
 }
 
-void yield() {
+void yield()
+{
 #ifdef __riscv_e
-  asm volatile("li a5, -1; ecall");
+  asm volatile("li a5, 0xb; ecall");
 #else
-  asm volatile("li a7, -1; ecall");
+  asm volatile("li a7, 0xb; ecall");
 #endif
 }
 
-bool ienabled() {
+bool ienabled()
+{
   return false;
 }
 
-void iset(bool enable) {
+void iset(bool enable)
+{
 }

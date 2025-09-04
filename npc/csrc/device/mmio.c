@@ -48,6 +48,7 @@ void mmio_write(paddr_t addr, int len, word_t wdata)
   {
     IFDEF(CONFIG_DIFFTEST, difftest_skip_ref());
     putchar((uint8_t)wdata);
+    fflush(stdout);
     return;
   }
   panic("The address " FMT_PADDR " writing is not supported!", addr);

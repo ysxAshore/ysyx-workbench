@@ -66,6 +66,11 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	wire jalr   = inst[6:0] == 7'b1100111 && inst[14:12] == 3'b000;
 	wire jal    = inst[6:0] == 7'b1101111;
 
+	wire csrrw = inst[6:0] == 7'b1110011 && inst[14:12] == 3'b001;
+	wire csrrs = inst[6:0] == 7'b1110011 && inst[14:12] == 3'b010;
+	wire ecall = inst[31:0] == 32'h0000_0073;
+	wire mret = inst[31:0] == 32'h3020_0073; 
+
 	wire ebreak = inst[31:0] == 32'h0010_0073;
 
 	wire inv    = ~ ( lb | lh | lw | lbu | lhu | 
@@ -76,6 +81,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
     				  lui | 
     				  beq | bne | blt | bge | bltu | bgeu | 
     				  jalr | jal | 
+					  csrrw | csrrs | ecall | mret |
     				  ebreak );
 
 
@@ -89,9 +95,9 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	101:TYPE_B
 	110:TYPE_J	
    	*/
-	wire TYPE_N = ebreak;
+	wire TYPE_N = ebreak | ecall | mret;
 	wire TYPE_R = add | sub | sll | slt | sltu | _xor | srl | sra | _or | _and;
-	wire TYPE_I = lb | lh | lw | lbu | lhu | addi | slli | slti | sltiu | xori | srli | srai | andi | ori;
+	wire TYPE_I = lb | lh | lw | lbu | lhu | addi | slli | slti | sltiu | xori | srli | srai | andi | ori | csrrw | csrrs;
 	wire TYPE_U = auipc | lui;
 	wire TYPE_S = sb | sh | sw;
 	wire TYPE_B = beq | bne | blt | bge | bltu | bgeu;
@@ -104,7 +110,11 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	//read data,include register data and imm data
 	wire [DATA_WIDTH-1:0] regData1;
 	wire [DATA_WIDTH-1:0] regData2;
-	wire [4:0]rs1 = ebreak ? 'ha : inst[19:15]; // ebreak时需要读ra寄存器获得返回值
+	`ifdef USE_RVE 
+	wire [4:0]rs1 = ecall ? 'hf : ebreak ? 'ha : inst[19:15]; // ebreak时需要读ra寄存器获得返回值
+	`else 
+	wire [4:0]rs1 = ecall ? 'h11 : ebreak ? 'ha : inst[19:15]; // ebreak时需要读ra寄存器获得返回值
+	`endif
 	wire [4:0]rs2 = inst[24:20];
 	wire [4:0]rd = inst[11:7];
 	wire [DATA_WIDTH-1:0]immI = {{(DATA_WIDTH-12){inst[31]}},inst[31:20]};
@@ -128,9 +138,27 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 		.rdata2(regData2)
 	);
 
+	wire [DATA_WIDTH-1:0] csrRData;
+	csrRegisterFile #(
+		.DATA_WIDTH(DATA_WIDTH)
+	)csrFile(
+		.clk(clk),
+		.rst(rst),
+		.wen(csrrw),
+		.waddr(immI[11:0]),
+		.raddr(immI[11:0]),
+		.wdata(regData1),
+		.rdata(csrRData),
+		.ecall(ecall),
+		.epc(pc),
+		.no(regData1),
+		.mret(mret)
+	);
+
 	//decide the alu operands
 	assign aluSrc1 = (auipc | jal | jalr ) ? pc : regData1;
 	assign aluSrc2 = (jal | jalr) ? 'h4 : 
+					 (csrrs | csrrw) ? csrRData :
 					 {DATA_WIDTH{inst_type == 3'b001}} & regData2 |
 					 {DATA_WIDTH{inst_type == 3'b010}} & immI     |
 					 {DATA_WIDTH{inst_type == 3'b011}} & immU     |
@@ -162,7 +190,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	assign aluOp[7]  = slli  | sll;
 	assign aluOp[8]  = srli  | srl;
 	assign aluOp[9]  = srai  | sra;
-	assign aluOp[10] = lui;
+	assign aluOp[10] = lui   | csrrs | csrrw; //不做运算 aluSrc2直接写入寄存器
     
     //decide the write reg
 	assign d_regW = inst_type == 3'b001 | inst_type == 3'b010 | inst_type == 3'b011 | inst_type == 3'b110;
@@ -182,7 +210,8 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	assign dnpc = {32{jalr}} & jalr_pc |
 				  {32{jal}}  & jal_pc  |
 				  {32{taken_branch}} & branch_pc |
-				  {32{~jal & ~jalr & ~taken_branch}} & snpc;
+				  {32{mret | ecall}} & csrRData  |
+				  {32{~jal & ~jalr & ~taken_branch & ~mret & ~ecall}} & snpc;
 	
 	//mem inst
 	/*
@@ -252,4 +281,59 @@ module RegisterFile #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32) (
   assign rdata1 = raddr1 == 0 ? 'b0 : rf[raddr1];
   assign rdata2 = raddr2 == 0 ? 'b0 : rf[raddr2];
 
+endmodule
+
+module csrRegisterFile #(DATA_WIDTH = 32)(
+	input clk,
+	input rst,
+	input wen,
+	input [DATA_WIDTH-1:0] wdata,
+	input [11:0] waddr,
+	input [11:0] raddr,
+	output [DATA_WIDTH-1:0] rdata,
+
+	input ecall,
+	input [DATA_WIDTH-1:0] epc,
+	input [DATA_WIDTH-1:0] no,
+
+	input mret
+
+);
+	reg [DATA_WIDTH-1:0] mstatus;
+	reg [DATA_WIDTH-1:0] mtvec;
+	reg [DATA_WIDTH-1:0] mepc;
+	reg [DATA_WIDTH-1:0] mcause;
+
+	always @(posedge clk) begin
+		if(rst) begin
+			mstatus <= 32'h1800;
+		end
+		else if(wen) begin
+			if(waddr == 12'h300) begin
+				mstatus <= wdata;
+			end
+			if(waddr == 12'h305) begin
+				mtvec <= wdata;
+			end
+			if(waddr == 12'h341) begin
+				mepc <= wdata;
+			end
+			if(waddr == 12'h342) begin
+				mcause <= wdata;
+			end
+		end 
+		else if(ecall) begin
+			mcause <= no;
+			mepc <= epc;
+		end
+	end
+
+	assign rdata = {32{raddr == 12'h300}} & mstatus |
+			       {32{raddr == 12'h305}} & mtvec   |	
+				   {32{raddr == 12'h341}} & mepc    |
+				   {32{raddr == 12'h342}} & mcause  |
+				   {32{mret && mcause == 32'hb}} & (mepc + 32'h4) |
+				   {32{mret && mcause != 32'hb}} & mepc |
+				   {32{ecall}} & mtvec;
+				   
 endmodule
