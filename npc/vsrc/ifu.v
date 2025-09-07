@@ -1,62 +1,109 @@
-module ifu #(parameter ADDR_WIDTH = 32, DATA_WIDTH = 32)(
-	input clk,
-	input rst,
+module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
+  input clk,
+  input rst,
 
-  //ID2IF Bus
-  input  id_to_if_valid,
-  output if_to_id_ready,
-	input  [ADDR_WIDTH - 1 : 0] id_to_if_bus,
+  //ID2IF Bus 
+  input [DATA_WIDTH - 1 : 0] id_to_if_bus, //dnpc
+  input        id_to_if_valid,
+  output       if_to_id_ready,
 
   //IF2ID Bus
-  input      id_to_if_ready,
-  output reg if_to_id_valid,
-  output     [DATA_WIDTH + ADDR_WIDTH - 1 : 0] if_to_id_bus,
+  output [DATA_WIDTH + ADDR_WIDTH - 1 : 0] if_to_id_bus,//pc+inst
+  output            if_to_id_valid,
+  input             id_to_if_ready,
 
-  input  wb_to_if_done
+  input wb_to_if_done
 );
-  reg [ADDR_WIDTH - 1: 0] fetch_pc;
+
+  // 当前PC寄存器
+  reg [ADDR_WIDTH - 1 : 0] fetch_pc;
   reg fetch_valid;
 
-  wire [ADDR_WIDTH - 1: 0] next_pc;
-  assign next_pc = id_to_if_bus;
+  // 存储ID阶段发来的PC
+  reg [31:0] next_pc;
 
-  wire [DATA_WIDTH - 1 : 0] inst;
+  // IFU内部连接SRAM的AXI读端口信号
+  reg arvalid;
+  wire arready;
+  wire rready = rvalid;
+  wire rvalid;
+  wire [1:0] rresp;
+  wire [DATA_WIDTH-1:0] rdata;
 
-  // 接收新的 PC
-  wire accept_new_pc = id_to_if_valid && if_to_id_ready;
+  // AXI 额外控制 控制不要重复发请求
+  reg send_request;
 
-  //当前流水级false或者id级准备好接收信息 MCPU需要在WB完成后才能取新的
-  assign if_to_id_ready = (!fetch_valid || id_to_if_ready) & wb_to_if_done;
+  // 接收新的 PC——nextpc可以更新到fetch_pc
+  wire accept_new_pc = wb_to_if_done;
+
+  // 当前流水级false或者id级准备好接收信息
+  // 相较原来去掉了 wb_to_if_done 使得不会让if_to_id_valid一直保存到wb级 id级可以尽早无效
+  // 但是这样就得缓存next_pc
+  assign if_to_id_ready = !fetch_valid || id_to_if_ready;
+
+  // fetch_valid已经用来表示IF级的有效与否了
+  assign if_to_id_valid = fetch_valid && rvalid && rready;
 
   always @(posedge clk) begin
     if (rst) begin
-      fetch_pc <= 'h8000_0000;
-      fetch_valid <= 'b1;
-      if_to_id_valid <= 'b0; //需要一个周期取指 在fetch_valid有效后延一周期置位if_to_id_valid
+      arvalid <= 1'b0;
+      fetch_pc <= 32'h8000_0000;
+      fetch_valid <= 1'b1;
+      send_request <= 1'b0;
     end else begin
-      // 更新fetch_pc取新指令
-      if(accept_new_pc) begin
+      // 接收来自 ID 阶段的新 PC
+      if (accept_new_pc) begin
         fetch_pc <= next_pc;
-        fetch_valid <= 'b1;
+        fetch_valid <= 1'b1;
       end
 
-      // 取指完毕 发出给id
-      if(fetch_valid && id_to_if_ready) begin
-        if_to_id_valid <= 'b1;
-        fetch_valid <= 'b0;
-      end else if(if_to_id_valid && id_to_if_ready)
-        if_to_id_valid <= 'b0; 
+      if(id_to_if_valid && if_to_id_ready) begin
+        next_pc <= id_to_if_bus;
       end
+
+      // 发出 arvalid，只在“需要发请求 + 没发过请求”时，发起 arvalid
+      // 这里|accept_new_pc 可以节省一周期 在更新fetch_pc的同时发出请求
+      if ((fetch_valid | accept_new_pc) && !arvalid && ~send_request) begin
+        arvalid <= 1'b1;
+        send_request <= 1'b1;
+      end else if (arvalid && arready) begin
+        arvalid <= 1'b0; //ar握手后撤销
+      end
+
+      // 接收 rvalid 数据 
+      if (rvalid && rready) begin
+        send_request <= 1'b0;
+      end
+
+      if(if_to_id_valid && id_to_if_ready) begin
+        fetch_valid <= 1'b0;
+      end
+    end
   end
 
-  assign if_to_id_bus = {fetch_pc, inst};
 
-  IFU_SRAM ifu_sram(
+  assign if_to_id_bus = {fetch_pc,rdata};
+
+  IFU_SRAM ifu_sram (
     .clk(clk),
     .rst(rst),
-    .ren(fetch_valid),
-    .addr(fetch_pc),
-    .data(inst)
+    .arvalid(arvalid),
+    .araddr(fetch_pc),
+    .arready(arready),
+    .rready(rready),
+    .rvalid(rvalid),
+    .rresp(rresp),
+    .rdata(rdata),
+    .awvalid(1'b0), // 未使用写通道
+    .awaddr(32'b0),
+    .awready(),
+    .wvalid(1'b0),
+    .wstrb(4'b0),
+    .wdata(32'b0),
+    .wready(),
+    .bready(1'b0),
+    .bvalid(),
+    .bresp()
   );
 
 endmodule
@@ -67,19 +114,50 @@ module IFU_SRAM #(
 )(
   input clk,
   input rst,
-  input ren,
-  input [ADDR_WIDTH - 1 : 0] addr,
-  output reg [DATA_WIDTH - 1 : 0] data
-);
-  reg rst_done;
+  
+  //ar  
+  input arvalid,
+  input [ADDR_WIDTH - 1 : 0] araddr,
+  output arready,
 
-  // 通过 DPI-C 从内存读指令
+  //r
+  input rready,
+  output reg [1:0] rresp,
+  output reg rvalid,
+  output reg [DATA_WIDTH - 1 : 0] rdata,
+
+  //aw
+  input awvalid,
+  input [ADDR_WIDTH - 1 : 0] awaddr,
+  output awready,
+
+  //w
+  input wvalid,
+  input [3:0] wstrb,
+  input [DATA_WIDTH - 1 : 0] wdata,
+  output wready,
+
+  //b
+  input bready,
+  output reg bvalid,
+  output reg [1:0] bresp
+);
+  assign arready = 1'b1;
+
+  // 通过 DPI-C 从内存读指令 只用实现AR、R通道 其他忽略
 	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] inst_fetch(input bit[ADDR_WIDTH - 1 : 0] raddr);
   always @(posedge clk) begin
     if(rst) begin
-        data <= 'h0000_0013;
+      rvalid <= 1'b0;
     end else begin
-        if(ren) data <= inst_fetch(addr);
+      if(arvalid && arready) begin
+        rvalid <= 1'b1;
+        rdata <= inst_fetch(araddr);
+        rresp <= 2'b0;
+      end
+      if(rvalid && rready) begin
+        rvalid <= 1'b0;
+      end
     end
   end
 endmodule

@@ -7,7 +7,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	input [DATA_WIDTH + ADDR_WIDTH - 1 : 0] if_to_id_bus,
 
 	input  exe_to_id_ready,
-	output reg id_to_exe_valid,
+	output id_to_exe_valid,
 	output [DATA_WIDTH * 3 + REG_ADDR_WIDTH + 19 - 1 : 0] id_to_exe_bus,					
 
 	input  if_to_id_ready,
@@ -19,8 +19,18 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	input  [DATA_WIDTH + REG_ADDR_WIDTH + 1 - 1 : 0] wb_to_id_bus
 
 );
-	assign id_to_if_ready = !id_to_exe_valid || exe_to_id_ready;
+	//id_valid
+	reg id_valid;
+	
+	//id级无有效数据 或者 存在有效数据且即将去往exe级
+	assign id_to_if_ready = !id_valid || exe_to_id_ready;
 	assign id_to_wb_ready = 1;
+
+	//传到if和exe的 目前只需要一个周期就能得到
+	reg id_to_if_ctl;
+	reg id_to_exe_ctl;
+	assign id_to_if_valid = id_valid && id_to_if_ctl; 
+	assign id_to_exe_valid = id_valid && id_to_exe_ctl; 
 
 	reg [DATA_WIDTH - 1 : 0] inst;
 	reg [ADDR_WIDTH - 1 : 0] pc;
@@ -32,18 +42,27 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 
 	always @(posedge clk) begin
 		if(rst) begin
-			id_to_exe_valid <= 'b0;
+			id_valid <= 'b0;
+			id_to_if_ctl <= 'b0;
+			id_to_exe_ctl <= 'b0;
 		end else begin
 			if(if_to_id_valid && id_to_if_ready) begin
+				id_valid <= 'b1;
+				id_to_if_ctl <= 'b1; //只需要一个周期 所以和id_valid同时置位
+				id_to_exe_ctl <= 'b1;//只需要一个周期 所以和id_valid同时置位
+
 				inst <= if_to_id_bus[DATA_WIDTH - 1 : 0];
 				pc <= if_to_id_bus[ADDR_WIDTH + DATA_WIDTH - 1 : DATA_WIDTH];
-				id_to_exe_valid <= 'b1; //一周期内就可以完成这些事情
-				id_to_if_valid <= 'b1;
 			end else begin 
-				if(exe_to_id_ready && id_to_exe_valid)
-					id_to_exe_valid <= 'b0;
-				if(if_to_id_ready && id_to_if_valid)
-					id_to_if_valid <= 'b0;
+				if(id_to_exe_valid && exe_to_id_ready)
+					id_to_exe_ctl <= 'b0;
+				if(id_to_if_valid && if_to_id_ready)
+					id_to_if_ctl <= 'b0;
+				if(!id_to_exe_ctl && !id_to_if_ctl ||
+				   !id_to_exe_ctl && id_to_if_valid && if_to_id_ready ||
+				   !id_to_if_ctl && id_to_exe_valid && exe_to_id_ready ||
+				   id_to_if_valid && id_to_if_ready && exe_to_id_ready && id_to_exe_valid)
+					id_valid <= 'b0;
 			end
 		end
 	end
@@ -101,6 +120,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 
 	wire ebreak = inst[31:0] == 32'h0010_0073;
 
+	//id_valid时 才会进行有无效判断
 	wire inv    = ~ ( lb | lh | lw | lbu | lhu | 
 				  	  addi | slli | slti | sltiu | xori | srli | srai | ori | andi | 
     				  auipc | 
@@ -110,7 +130,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
     				  beq | bne | blt | bge | bltu | bgeu | 
     				  jalr | jal | 
 					  csrrw | csrrs | ecall | mret |
-    				  ebreak );
+    				  ebreak ) && id_valid;
 
 
 	//categorize the inst
@@ -222,7 +242,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	assign aluOp[10] = lui   | csrrs | csrrw; //不做运算 aluSrc2直接写入寄存器
     
     //decide the write reg
-	wire d_regW = inst_type == 3'b001 | inst_type == 3'b010 | inst_type == 3'b011 | inst_type == 3'b110;
+	wire d_regW = (inst_type == 3'b001 || inst_type == 3'b010 || inst_type == 3'b011 || inst_type == 3'b110) && id_valid;
 	wire [REG_ADDR_WIDTH - 1 : 0] d_regAddr = rd;
 
 	//jump and branch inst
@@ -251,15 +271,15 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 		101 lhu
 	*/
 	wire [2:0] load_inst;
-	assign load_inst[0] = lb | lw | lhu;
-	assign load_inst[1] = lh | lw;
-	assign load_inst[2] = lbu | lhu;
+	assign load_inst[0] = (lb | lw | lhu) & id_valid;
+	assign load_inst[1] = (lh | lw) & id_valid;
+	assign load_inst[2] = (lbu | lhu) & id_valid;
 
 	wire [3:0] store_mask;
-	assign store_mask[0] = sw | sh | sb;
-	assign store_mask[1] = sw | sh;
-	assign store_mask[2] = sw;
-	assign store_mask[3] = sw;
+	assign store_mask[0] = (sw | sh | sb) & id_valid;
+	assign store_mask[1] = (sw | sh) & id_valid;
+	assign store_mask[2] = sw & id_valid;
+	assign store_mask[3] = sw & id_valid;
 	wire [DATA_WIDTH - 1 : 0] store_data = regData2;
 
 	assign id_to_exe_bus = {
@@ -278,12 +298,13 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	//DPI-C recongnize the ebreak ,then notice the sim terminate
 	import "DPI-C" function void execEbreak(input bit[ADDR_WIDTH - 1 : 0] pc, input bit[DATA_WIDTH - 1 : 0] retval);
 	import "DPI-C" function void execInv(input bit[ADDR_WIDTH - 1 : 0]pc);
-	always @(ebreak) begin
-		if(ebreak && ~rst)
+	//多周期时可以在clk上升沿 因为ID还早
+	always @(posedge clk) begin
+		if(ebreak)
 			execEbreak(pc,regData1);
 	end
-	always @(inv) begin
-		if(inv && ~rst)
+	always @(posedge clk) begin
+		if(inv)
 			execInv(pc);
 	end
 

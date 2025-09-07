@@ -21,7 +21,7 @@ module top(
 
 	assign dnpc = id_to_if_bus;
 	assign {pc, inst} = if_to_id_bus;
-	assign update_dut = id_to_if_valid & if_to_id_ready;
+	assign update_dut = wb_to_if_done;
 
   	ifu #(
   	  .ADDR_WIDTH(ADDR_WIDTH),

@@ -12,6 +12,8 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 
 
 );
+	reg exe_valid;
+
 	reg [DATA_WIDTH - 1 : 0] aluSrc1;
 	reg [DATA_WIDTH - 1 : 0] aluSrc2;
 	reg [10 : 0] aluOp;
@@ -21,29 +23,87 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 	reg [3 : 0] store_mask;
 	reg [DATA_WIDTH - 1 : 0] store_data;
 
-	reg exe_to_mem_valid_temp;
+	assign exe_to_id_ready = ~exe_valid || mem_to_exe_ready;
 
-	assign exe_to_id_ready = ~exe_to_mem_valid || mem_to_exe_ready;
+	//AXI
+	reg arvalid;
+	wire arready;
+	reg awvalid;
+	wire awready;
+	reg wvalid;
+	wire wready;
+	wire rvalid;
+	wire rready = rvalid;
+	wire [1:0] rresp;
+	wire bvalid;
+	wire bready = bvalid;
+	wire [1:0] bresp;
+
+	reg send_request_ar_aw;
+	reg send_request_w;
+
+	assign exe_to_mem_valid = exe_valid && load_inst != 3'b0 ? rvalid && rready && rresp == 2'b0 : 
+							  exe_valid && store_mask != 4'b0 ? bvalid && bready && bresp == 2'b0 :
+							  exe_valid;
+
+
 	always @(posedge clk) begin
 		if(rst) begin
-			aluOp <= 'b0;
-			d_regW <= 'b0;
-			load_inst <= 'b0;
-			store_mask <= 'b0;
-			exe_to_mem_valid_temp <= 'b0;
-		end else if (id_to_exe_valid && exe_to_id_ready) begin
-			aluOp <= id_to_exe_bus[DATA_WIDTH * 3 + REG_ADDR_WIDTH + 19 - 1 : DATA_WIDTH * 3 + REG_ADDR_WIDTH + 8];
-			aluSrc1 <= id_to_exe_bus[DATA_WIDTH * 3 + REG_ADDR_WIDTH + 8 - 1 : DATA_WIDTH * 2 + REG_ADDR_WIDTH + 8];
-			aluSrc2 <= id_to_exe_bus[DATA_WIDTH * 2 + REG_ADDR_WIDTH  + 8 - 1 : DATA_WIDTH + REG_ADDR_WIDTH + 8];
-			d_regW <= id_to_exe_bus[DATA_WIDTH + REG_ADDR_WIDTH + 7 : DATA_WIDTH + REG_ADDR_WIDTH + 7];
-			d_regAddr <= id_to_exe_bus[DATA_WIDTH + REG_ADDR_WIDTH + 7 - 1 : DATA_WIDTH + 7];
-			load_inst <= id_to_exe_bus[DATA_WIDTH + 7 - 1 : DATA_WIDTH + 4];
-			store_mask <= id_to_exe_bus[DATA_WIDTH + 4 - 1 : DATA_WIDTH];
-			store_data <= id_to_exe_bus[DATA_WIDTH - 1 : 0];
-			
-			exe_to_mem_valid_temp <= 'b1;
-		end else if(mem_to_exe_ready && exe_to_mem_valid) 
-			exe_to_mem_valid_temp <= 'b0;
+			arvalid <= 'b0;
+			awvalid <= 'b0;
+			send_request_ar_aw <= 'b0;
+			send_request_w <= 'b0;
+		end else begin
+			if (id_to_exe_valid && exe_to_id_ready) begin
+				exe_valid <= 'b1;
+
+				aluOp <= id_to_exe_bus[DATA_WIDTH * 3 + REG_ADDR_WIDTH + 19 - 1 : DATA_WIDTH * 3 + REG_ADDR_WIDTH + 8];
+				aluSrc1 <= id_to_exe_bus[DATA_WIDTH * 3 + REG_ADDR_WIDTH + 8 - 1 : DATA_WIDTH * 2 + REG_ADDR_WIDTH + 8];
+				aluSrc2 <= id_to_exe_bus[DATA_WIDTH * 2 + REG_ADDR_WIDTH  + 8 - 1 : DATA_WIDTH + REG_ADDR_WIDTH + 8];
+				d_regW <= id_to_exe_bus[DATA_WIDTH + REG_ADDR_WIDTH + 7 : DATA_WIDTH + REG_ADDR_WIDTH + 7];
+				d_regAddr <= id_to_exe_bus[DATA_WIDTH + REG_ADDR_WIDTH + 7 - 1 : DATA_WIDTH + 7];
+				load_inst <= id_to_exe_bus[DATA_WIDTH + 7 - 1 : DATA_WIDTH + 4];
+				store_mask <= id_to_exe_bus[DATA_WIDTH + 4 - 1 : DATA_WIDTH];
+				store_data <= id_to_exe_bus[DATA_WIDTH - 1 : 0];
+			end
+
+			if(exe_valid) begin
+				if(load_inst != 3'b0) begin
+					if(~arvalid && ~send_request_ar_aw) begin
+						arvalid <= 1'b1;
+						send_request_ar_aw <= 1'b1;
+					end else if(arvalid && arready) begin
+						arvalid <= 1'b0;
+					end
+				end else if(store_mask != 4'b0) begin
+					if(~awvalid && ~send_request_ar_aw) begin
+						awvalid <= 1'b1;
+						send_request_ar_aw <= 1'b1;
+					end else if(awvalid && awready) begin
+						awvalid <= 1'b0;
+					end
+					if(~wvalid && ~send_request_w) begin
+						wvalid <= 1'b1;
+						send_request_w <= 1'b1;
+					end else if(wvalid && wready) begin
+						wvalid <= 1'b0;
+					end
+				end 
+			end
+
+			if(rvalid && rready) begin
+				send_request_ar_aw <= 1'b0;
+			end
+
+			if(bvalid && bready) begin
+				send_request_ar_aw <= 1'b0;
+				send_request_w <= 1'b0;
+			end
+
+			if(exe_to_mem_valid && mem_to_exe_ready) begin
+				exe_valid <= 1'b0;
+			end
+		end	
 	end
 
 	wire [DATA_WIDTH - 1 : 0] aluResult;
@@ -61,28 +121,29 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 	wire [DATA_WIDTH - 1 : 0] rlen = load_inst == 3'h1 || load_inst == 3'h4 ? 'h1 :
 									 load_inst == 3'h2 || load_inst == 3'h5 ? 'h2 :
 									 'h4;
-	wire [DATA_WIDTH - 1 : 0] wlen = store_mask == 'h1 ? 'h1 :
-									 store_mask == 'h3 ? 'h2 :
-									 'h4;
-	wire [DATA_WIDTH - 1 : 0] wdata = store_mask == 'h1 ? {{(DATA_WIDTH - 8){1'b0}}, store_data[7:0]} :
-									  store_mask == 'h3 ? {{(DATA_WIDTH - 16){1'b0}}, store_data[15:0]} :
-									  store_data[31:0];
-	wire rvalid;
 
-	LSU_SRAM lsu_sram(
-		.clk(clk),
-		.ren(load_inst != 3'b0 && exe_to_mem_valid_temp),
-		.rlen(rlen),
-		.raddr(aluResult),
-		.rdata(load_data),
-		.rvalid(rvalid),
-		.wen(store_mask != 4'b0 && exe_to_mem_valid_temp),
-		.wlen(wlen),
-		.waddr(aluResult),
-		.wdata(wdata)
+
+	LSU_SRAM lsu_sram (
+	  .clk(clk),
+	  .rst(rst),
+	  .arvalid(arvalid),
+	  .araddr(aluResult),
+	  .arready(arready),
+	  .rready(rready),
+	  .rvalid(rvalid),
+	  .rresp(rresp),
+	  .rdata(load_data),
+	  .awvalid(awvalid), // 未使用写通道
+	  .awaddr(aluResult),
+	  .awready(awready),
+	  .wvalid(wvalid),
+	  .wstrb(store_mask),
+	  .wdata(store_data),
+	  .wready(wready),
+	  .bready(bready),
+	  .bvalid(bvalid),
+	  .bresp(bresp)
 	);
-
-	assign exe_to_mem_valid = load_inst != 'b0 ? rvalid && exe_to_mem_valid_temp : exe_to_mem_valid_temp;
 
 	assign exe_to_mem_bus = {
 		d_regW,
@@ -174,36 +235,106 @@ module alu #(DATA_WIDTH = 32)(
  	    			  | ({DATA_WIDTH{op_srl|op_sra}} & sr_result);
 endmodule
 
-
 module LSU_SRAM #(
   parameter DATA_WIDTH = 32,
   parameter ADDR_WIDTH = 32
 )(
-  input  clk,
-  input  ren,
-  input  [ADDR_WIDTH - 1 : 0] raddr,
-  input  [DATA_WIDTH - 1 : 0] rlen,
+  input clk,
+  input rst,
+
+  //ar  
+  input arvalid,
+  input [ADDR_WIDTH - 1 : 0] araddr,
+  output arready,
+
+  //r
+  input rready,
+  output reg [1:0] rresp,
   output reg rvalid,
   output reg [DATA_WIDTH - 1 : 0] rdata,
-  
-  input  wen,
-  input  [ADDR_WIDTH - 1 : 0] waddr,
-  input  [DATA_WIDTH - 1 : 0] wlen,
-  input  [DATA_WIDTH - 1 : 0] wdata
+
+  //aw
+  input awvalid,
+  input [ADDR_WIDTH - 1 : 0] awaddr,
+  output awready,
+
+  //w
+  input wvalid,
+  input [3:0] wstrb,
+  input [DATA_WIDTH - 1 : 0] wdata,
+  output wready,
+
+  //b
+  input bready,
+  output reg bvalid,
+  output reg [1:0] bresp
 );
-	//地址不用对齐 因为vaddr_read/write都是可以直接指针运算访问虚拟数组的
-	//read:根据load_inst给定len,然后对应的数据都会放在返回值低位
-	//write:根据e_store_mask给定len,写数据就是低位的
+  	assign arready = 1'b1; //总是可以接受读请求
+	assign awready = 1'b1; //总是可以接受写请求
+
+	// 通过 DPI-C 从内存读
 	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] vaddr_read(input bit[ADDR_WIDTH - 1 : 0] raddr,input bit[DATA_WIDTH - 1 : 0] len);
-	import "DPI-C" function void vaddr_write(input bit[ADDR_WIDTH - 1 : 0] waddr,input bit[DATA_WIDTH - 1 : 0] wlen,input bit[DATA_WIDTH - 1 : 0] wdata);
   	always @(posedge clk) begin
-    	if(ren) begin //在复位无效后开始取指
-      		rdata <=  vaddr_read(raddr, rlen);
-			rvalid <= 'b1;
-		end else 
-			rvalid <= 'b0;
-		if(wen) begin
-			vaddr_write(waddr, wlen, wdata);
-		end
+   		if(rst) begin
+      		rvalid <= 1'b0;
+    	end else if(arvalid && arready) begin //在复位无效后开始取指
+      		rdata <= vaddr_read(araddr, 'h4); //不支持rlen 那么就直接读4B
+      		rvalid <= 1'b1;
+      		rresp <= 2'b0;
+    	end else if(rvalid && rready) begin
+      		rvalid <= 1'b0;
+    	end
   	end
+
+	// aw 和 w 通道应该是解耦的 即允许同时发送awaddr和wdata
+	// 因此需要使用reg暂存发来的wdata wstrb awaddr
+	// 当他们都有效时 就可以发送写请求
+	reg [ADDR_WIDTH - 1 : 0] reg_awaddr;
+	reg [DATA_WIDTH - 1 : 0] reg_wdata;
+	reg [3 : 0] reg_wstrb;
+	reg aw_regValid;
+	reg w_regValid;
+
+	assign awready = ~aw_regValid;
+	assign wready = ~w_regValid;
+
+	wire [DATA_WIDTH - 1 : 0] func_wlen = reg_wstrb == 'h1 ? 'h1 :
+									 reg_wstrb == 'h3 ? 'h2 :
+									 'h4;
+	wire [DATA_WIDTH - 1 : 0] func_wdata = reg_wstrb == 'h1 ? {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[7:0]} :
+									  reg_wstrb == 'h3 ? {{(DATA_WIDTH - 16){1'b0}}, reg_wdata[15:0]} :
+									  reg_wdata[31:0];
+
+	import "DPI-C" function void vaddr_write(input bit[ADDR_WIDTH - 1 : 0] waddr,input bit[DATA_WIDTH - 1 : 0] wlen,input bit[DATA_WIDTH - 1 : 0] wdata);
+	always @(posedge clk) begin
+		if(rst) begin
+			bvalid <= 1'b0;
+			aw_regValid <= 1'b0;
+			w_regValid <= 1'b0;
+		end else begin
+			if(awready && awvalid) begin
+				aw_regValid <= 1'b1;
+				reg_awaddr <= awaddr;
+			end
+
+			if(wready && wvalid) begin
+				w_regValid <= 1'b1;
+				reg_wdata <= wdata;
+				reg_wstrb <= wstrb;
+			end
+
+			if(aw_regValid && w_regValid) begin
+				aw_regValid <= 1'b0;
+				w_regValid <= 1'b0;
+				vaddr_write(reg_awaddr, func_wlen, func_wdata);
+				bvalid <= 1'b1;
+				bresp <= 2'b0;
+			end 
+
+			if(bvalid && bready) begin
+				bvalid <= 1'b0;
+			end
+		end
+	end
+	
 endmodule
