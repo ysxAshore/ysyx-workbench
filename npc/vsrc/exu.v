@@ -1,24 +1,51 @@
 module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
-	input 							clk,
-	input  [DATA_WIDTH - 1     : 0] aluSrc1,
-	input  [DATA_WIDTH - 1     : 0] aluSrc2,
-	input  [                10 : 0] aluOp,
-	input 							d_regW,
-	input  [REG_ADDR_WIDTH - 1 : 0] d_regAddr,
-	input  [				 2 : 0] load_inst,
-	input  [				 3 : 0] store_mask,
-	input  [DATA_WIDTH - 1     : 0] store_data,
-	
+	input  clk,
+	input  rst,
 
-	output 						    e_regW,
-	output [REG_ADDR_WIDTH - 1 : 0] e_regAddr,
-	output [DATA_WIDTH - 1     : 0] e_regData,
-	output [				 2 : 0] e_load_inst,
-	output [				 3 : 0] e_store_mask,
-	output [DATA_WIDTH - 1     : 0] e_store_data
+	input  id_to_exe_valid,
+	output exe_to_id_ready,
+	input  [DATA_WIDTH * 3 + REG_ADDR_WIDTH + 19 - 1 : 0] id_to_exe_bus,
+
+	input  mem_to_exe_ready,
+	output exe_to_mem_valid,
+	output [DATA_WIDTH * 2 + REG_ADDR_WIDTH + 4 - 1 : 0]exe_to_mem_bus
+
 
 );
-	
+	reg [DATA_WIDTH - 1 : 0] aluSrc1;
+	reg [DATA_WIDTH - 1 : 0] aluSrc2;
+	reg [10 : 0] aluOp;
+	reg d_regW;
+	reg [REG_ADDR_WIDTH - 1 : 0] d_regAddr;
+	reg [2 : 0] load_inst;
+	reg [3 : 0] store_mask;
+	reg [DATA_WIDTH - 1 : 0] store_data;
+
+	reg exe_to_mem_valid_temp;
+
+	assign exe_to_id_ready = ~exe_to_mem_valid || mem_to_exe_ready;
+	always @(posedge clk) begin
+		if(rst) begin
+			aluOp <= 'b0;
+			d_regW <= 'b0;
+			load_inst <= 'b0;
+			store_mask <= 'b0;
+			exe_to_mem_valid_temp <= 'b0;
+		end else if (id_to_exe_valid && exe_to_id_ready) begin
+			aluOp <= id_to_exe_bus[DATA_WIDTH * 3 + REG_ADDR_WIDTH + 19 - 1 : DATA_WIDTH * 3 + REG_ADDR_WIDTH + 8];
+			aluSrc1 <= id_to_exe_bus[DATA_WIDTH * 3 + REG_ADDR_WIDTH + 8 - 1 : DATA_WIDTH * 2 + REG_ADDR_WIDTH + 8];
+			aluSrc2 <= id_to_exe_bus[DATA_WIDTH * 2 + REG_ADDR_WIDTH  + 8 - 1 : DATA_WIDTH + REG_ADDR_WIDTH + 8];
+			d_regW <= id_to_exe_bus[DATA_WIDTH + REG_ADDR_WIDTH + 7 : DATA_WIDTH + REG_ADDR_WIDTH + 7];
+			d_regAddr <= id_to_exe_bus[DATA_WIDTH + REG_ADDR_WIDTH + 7 - 1 : DATA_WIDTH + 7];
+			load_inst <= id_to_exe_bus[DATA_WIDTH + 7 - 1 : DATA_WIDTH + 4];
+			store_mask <= id_to_exe_bus[DATA_WIDTH + 4 - 1 : DATA_WIDTH];
+			store_data <= id_to_exe_bus[DATA_WIDTH - 1 : 0];
+			
+			exe_to_mem_valid_temp <= 'b1;
+		end else if(mem_to_exe_ready && exe_to_mem_valid) 
+			exe_to_mem_valid_temp <= 'b0;
+	end
+
 	wire [DATA_WIDTH - 1 : 0] aluResult;
 	alu #(
 		.DATA_WIDTH(DATA_WIDTH)
@@ -28,13 +55,42 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 		.aluSrc2(aluSrc2),
 		.aluResult(aluResult)
 	);
-	assign e_regW = d_regW;
-	assign e_regAddr = d_regAddr;
-	assign e_regData = aluResult;
 
-	assign e_load_inst  = load_inst;
-	assign e_store_mask = store_mask;
-	assign e_store_data = store_data;
+	wire [DATA_WIDTH - 1 : 0] load_data;
+	//防止对齐位宽 这里设置为DATA_WIDTH
+	wire [DATA_WIDTH - 1 : 0] rlen = load_inst == 3'h1 || load_inst == 3'h4 ? 'h1 :
+									 load_inst == 3'h2 || load_inst == 3'h5 ? 'h2 :
+									 'h4;
+	wire [DATA_WIDTH - 1 : 0] wlen = store_mask == 'h1 ? 'h1 :
+									 store_mask == 'h3 ? 'h2 :
+									 'h4;
+	wire [DATA_WIDTH - 1 : 0] wdata = store_mask == 'h1 ? {{(DATA_WIDTH - 8){1'b0}}, store_data[7:0]} :
+									  store_mask == 'h3 ? {{(DATA_WIDTH - 16){1'b0}}, store_data[15:0]} :
+									  store_data[31:0];
+	wire rvalid;
+
+	LSU_SRAM lsu_sram(
+		.clk(clk),
+		.ren(load_inst != 3'b0 && exe_to_mem_valid_temp),
+		.rlen(rlen),
+		.raddr(aluResult),
+		.rdata(load_data),
+		.rvalid(rvalid),
+		.wen(store_mask != 4'b0 && exe_to_mem_valid_temp),
+		.wlen(wlen),
+		.waddr(aluResult),
+		.wdata(wdata)
+	);
+
+	assign exe_to_mem_valid = load_inst != 'b0 ? rvalid && exe_to_mem_valid_temp : exe_to_mem_valid_temp;
+
+	assign exe_to_mem_bus = {
+		d_regW,
+		d_regAddr,
+		aluResult,
+		load_inst,
+		load_data
+	};
 
 endmodule
 
@@ -116,4 +172,38 @@ module alu #(DATA_WIDTH = 32)(
  	    			  | ({DATA_WIDTH{op_lui       }} & lui_result)
  	    			  | ({DATA_WIDTH{op_sll       }} & sll_result)
  	    			  | ({DATA_WIDTH{op_srl|op_sra}} & sr_result);
+endmodule
+
+
+module LSU_SRAM #(
+  parameter DATA_WIDTH = 32,
+  parameter ADDR_WIDTH = 32
+)(
+  input  clk,
+  input  ren,
+  input  [ADDR_WIDTH - 1 : 0] raddr,
+  input  [DATA_WIDTH - 1 : 0] rlen,
+  output reg rvalid,
+  output reg [DATA_WIDTH - 1 : 0] rdata,
+  
+  input  wen,
+  input  [ADDR_WIDTH - 1 : 0] waddr,
+  input  [DATA_WIDTH - 1 : 0] wlen,
+  input  [DATA_WIDTH - 1 : 0] wdata
+);
+	//地址不用对齐 因为vaddr_read/write都是可以直接指针运算访问虚拟数组的
+	//read:根据load_inst给定len,然后对应的数据都会放在返回值低位
+	//write:根据e_store_mask给定len,写数据就是低位的
+	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] vaddr_read(input bit[ADDR_WIDTH - 1 : 0] raddr,input bit[DATA_WIDTH - 1 : 0] len);
+	import "DPI-C" function void vaddr_write(input bit[ADDR_WIDTH - 1 : 0] waddr,input bit[DATA_WIDTH - 1 : 0] wlen,input bit[DATA_WIDTH - 1 : 0] wdata);
+  	always @(posedge clk) begin
+    	if(ren) begin //在复位无效后开始取指
+      		rdata <=  vaddr_read(raddr, rlen);
+			rvalid <= 'b1;
+		end else 
+			rvalid <= 'b0;
+		if(wen) begin
+			vaddr_write(waddr, wlen, wdata);
+		end
+  	end
 endmodule

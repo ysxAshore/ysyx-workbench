@@ -90,10 +90,10 @@ static void exec_once()
         if (sim_time % (clk_period / 2) == 0)
         {
             dut.clock = !dut.clock;
+            dut.eval();
 
-            if (dut.clock) // 第一次的不退出 因为可能会trace 复位时的nop
+            if (dut.clock && dut.update_dut)
             {
-                dut.eval();
                 cpu.pc = dut.pc;
                 cpu.dnpc = dut.dnpc;
                 cpu.inst = dut.inst;

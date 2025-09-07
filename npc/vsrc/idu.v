@@ -1,25 +1,53 @@
 module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
-	input 							clk,
-	input 							rst,
-	input [		ADDR_WIDTH - 1 : 0] pc,
-	input [		DATA_WIDTH - 1 : 0] inst,
+	input clk,
+	input rst,
 
-	output [	DATA_WIDTH - 1 : 0] aluSrc1,
-	output [	DATA_WIDTH - 1 : 0] aluSrc2,
-	output [				10 : 0] aluOp,
-	output 							d_regW,
-	output [REG_ADDR_WIDTH - 1 : 0] d_regAddr,
+	input  if_to_id_valid,
+	output id_to_if_ready,
+	input [DATA_WIDTH + ADDR_WIDTH - 1 : 0] if_to_id_bus,
 
-	output [				 2 : 0] load_inst,
-	output [				 3 : 0] store_mask,
-	output [    DATA_WIDTH - 1 : 0] store_data,
+	input  exe_to_id_ready,
+	output reg id_to_exe_valid,
+	output [DATA_WIDTH * 3 + REG_ADDR_WIDTH + 19 - 1 : 0] id_to_exe_bus,					
 
-	input 							w_regW,
-	input  [REG_ADDR_WIDTH - 1 : 0] w_regAddr,
-	input  [    DATA_WIDTH - 1 : 0] w_regData,
+	input  if_to_id_ready,
+	output id_to_if_valid,
+	output [ADDR_WIDTH - 1 : 0] id_to_if_bus,
 
-	output [	DATA_WIDTH - 1 : 0] dnpc
+	input  wb_to_id_valid,
+	output id_to_wb_ready,
+	input  [DATA_WIDTH + REG_ADDR_WIDTH + 1 - 1 : 0] wb_to_id_bus
+
 );
+	assign id_to_if_ready = !id_to_exe_valid || exe_to_id_ready;
+	assign id_to_wb_ready = 1;
+
+	reg [DATA_WIDTH - 1 : 0] inst;
+	reg [ADDR_WIDTH - 1 : 0] pc;
+
+	//节省周期 wb阶段有有效数据时 立马传过来写入regfiles
+	wire [DATA_WIDTH - 1 : 0] w_regData = wb_to_id_bus[DATA_WIDTH + REG_ADDR_WIDTH + 1 - 1 : REG_ADDR_WIDTH + 1] & {DATA_WIDTH{wb_to_id_valid & id_to_wb_ready}};
+	wire [REG_ADDR_WIDTH - 1 : 0] w_regAddr = wb_to_id_bus[REG_ADDR_WIDTH + 1 - 1 : 1] & {REG_ADDR_WIDTH{wb_to_id_valid & id_to_wb_ready}};
+	wire w_regW = wb_to_id_bus[0] & wb_to_id_valid & id_to_wb_ready;
+
+	always @(posedge clk) begin
+		if(rst) begin
+			id_to_exe_valid <= 'b0;
+		end else begin
+			if(if_to_id_valid && id_to_if_ready) begin
+				inst <= if_to_id_bus[DATA_WIDTH - 1 : 0];
+				pc <= if_to_id_bus[ADDR_WIDTH + DATA_WIDTH - 1 : DATA_WIDTH];
+				id_to_exe_valid <= 'b1; //一周期内就可以完成这些事情
+				id_to_if_valid <= 'b1;
+			end else begin 
+				if(exe_to_id_ready && id_to_exe_valid)
+					id_to_exe_valid <= 'b0;
+				if(if_to_id_ready && id_to_if_valid)
+					id_to_if_valid <= 'b0;
+			end
+		end
+	end
+
 	//recognize the inst
 	wire lb     = inst[6:0] == 7'b0000011 && inst[14:12] == 3'b000;
 	wire lh     = inst[6:0] == 7'b0000011 && inst[14:12] == 3'b001;
@@ -156,8 +184,8 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	);
 
 	//decide the alu operands
-	assign aluSrc1 = (auipc | jal | jalr ) ? pc : regData1;
-	assign aluSrc2 = (jal | jalr) ? 'h4 : 
+	wire [DATA_WIDTH - 1 : 0] aluSrc1 = (auipc | jal | jalr ) ? pc : regData1;
+	wire [DATA_WIDTH - 1 : 0] aluSrc2 = (jal | jalr) ? 'h4 : 
 					 (csrrs | csrrw) ? csrRData :
 					 {DATA_WIDTH{inst_type == 3'b001}} & regData2 |
 					 {DATA_WIDTH{inst_type == 3'b010}} & immI     |
@@ -180,6 +208,7 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 		9: sra
 	   10: lui
 	*/
+	wire [10:0] aluOp;
     assign aluOp[0]  = lb | lh | lw | lbu | lhu | addi | auipc | sb | sh | sw | add | jalr | jal;
 	assign aluOp[1]  = sub;
 	assign aluOp[2]  = slti  | slt;
@@ -193,8 +222,8 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	assign aluOp[10] = lui   | csrrs | csrrw; //不做运算 aluSrc2直接写入寄存器
     
     //decide the write reg
-	assign d_regW = inst_type == 3'b001 | inst_type == 3'b010 | inst_type == 3'b011 | inst_type == 3'b110;
-	assign d_regAddr = rd;
+	wire d_regW = inst_type == 3'b001 | inst_type == 3'b010 | inst_type == 3'b011 | inst_type == 3'b110;
+	wire [REG_ADDR_WIDTH - 1 : 0] d_regAddr = rd;
 
 	//jump and branch inst
 	wire [ADDR_WIDTH - 1 : 0] snpc = pc + 'h4;
@@ -207,11 +236,11 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 						bltu & regData1 < regData2 |
 						bge & ~($signed(regData1) < $signed(regData2)) |
 						bgeu & ~(regData1 < regData2);
-	assign dnpc = {32{jalr}} & jalr_pc |
-				  {32{jal}}  & jal_pc  |
-				  {32{taken_branch}} & branch_pc |
-				  {32{mret | ecall}} & csrRData  |
-				  {32{~jal & ~jalr & ~taken_branch & ~mret & ~ecall}} & snpc;
+	wire [ADDR_WIDTH - 1 : 0] dnpc = {32{jalr}} & jalr_pc |
+				  					 {32{jal}}  & jal_pc  |
+				  					 {32{taken_branch}} & branch_pc |
+				  					 {32{mret | ecall}} & csrRData  |
+				  					 {32{~jal & ~jalr & ~taken_branch & ~mret & ~ecall}} & snpc;
 	
 	//mem inst
 	/*
@@ -221,14 +250,30 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 		100 lbu
 		101 lhu
 	*/
+	wire [2:0] load_inst;
 	assign load_inst[0] = lb | lw | lhu;
 	assign load_inst[1] = lh | lw;
 	assign load_inst[2] = lbu | lhu;
+
+	wire [3:0] store_mask;
 	assign store_mask[0] = sw | sh | sb;
 	assign store_mask[1] = sw | sh;
 	assign store_mask[2] = sw;
 	assign store_mask[3] = sw;
-	assign store_data = regData2;
+	wire [DATA_WIDTH - 1 : 0] store_data = regData2;
+
+	assign id_to_exe_bus = {
+		aluOp,
+		aluSrc1,
+		aluSrc2,
+		d_regW,
+		d_regAddr,
+		load_inst,
+		store_mask,
+		store_data
+	};
+	
+	assign id_to_if_bus = dnpc;
 
 	//DPI-C recongnize the ebreak ,then notice the sim terminate
 	import "DPI-C" function void execEbreak(input bit[ADDR_WIDTH - 1 : 0] pc, input bit[DATA_WIDTH - 1 : 0] retval);

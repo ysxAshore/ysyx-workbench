@@ -14,7 +14,7 @@
 #**************************************************************************************/
 
 ifeq ($(CONFIG_ITRACE)$(CONFIG_IQUEUE),)
-SRCS-BLACKLIST-y += csrc/utils/disasm.c
+CSRCS-BLACKLIST-y += csrc/utils/disasm.c
 else
 # capstone是一个反汇编引擎
 LIBCAPSTONE = $(NEMU_HOME)/tools/capstone/repo/libcapstone.so.5
