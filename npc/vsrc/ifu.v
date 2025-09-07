@@ -144,20 +144,47 @@ module IFU_SRAM #(
 );
   assign arready = 1'b1;
 
+  wire [3:0] rand_delay;
+  lfsr4 lfsr(.clk(clk), .rst(rst), .rnd(rand_delay));
+
+  reg [ADDR_WIDTH - 1 : 0] reg_araddr;
+
+  reg [3:0] delay_cnt;
+  reg pending; 
+
   // 通过 DPI-C 从内存读指令 只用实现AR、R通道 其他忽略
 	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] inst_fetch(input bit[ADDR_WIDTH - 1 : 0] raddr);
   always @(posedge clk) begin
     if(rst) begin
       rvalid <= 1'b0;
+      pending <= 1'b0;
     end else begin
-      if(arvalid && arready) begin
-        rvalid <= 1'b1;
-        rdata <= inst_fetch(araddr);
-        rresp <= 2'b0;
+      if(arvalid && arready && ~pending) begin
+        reg_araddr <= araddr;
+        delay_cnt <= rand_delay % 8;
+        pending <= 1'b1;
+      end else if(pending) begin
+        if(delay_cnt == 'h0) begin
+          pending <= 1'b0;
+          rvalid <= 1'b1;
+          rdata <= inst_fetch(reg_araddr);
+          rresp <= 2'b0;
+        end else delay_cnt <= delay_cnt - 'b1;
       end
       if(rvalid && rready) begin
         rvalid <= 1'b0;
       end
     end
+  end
+endmodule
+
+module lfsr4(
+  input clk,
+  input rst,
+  output reg [3:0] rnd
+);
+  always @(posedge clk or negedge rst) begin
+    if (!rst) rnd <= 4'hF; // 初始值不能为 0
+    else rnd <= {rnd[2:0], rnd[3] ^ rnd[2]};
   end
 endmodule
