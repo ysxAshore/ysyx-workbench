@@ -1,4 +1,4 @@
-module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
+module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 	input  clk,
 	input  rst,
 
@@ -8,7 +8,34 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 
 	input  mem_to_exe_ready,
 	output exe_to_mem_valid,
-	output [DATA_WIDTH * 2 + REG_ADDR_WIDTH + 4 - 1 : 0]exe_to_mem_bus
+	output [DATA_WIDTH * 2 + REG_ADDR_WIDTH + 4 - 1 : 0]exe_to_mem_bus,
+
+	//ar  
+	output reg arvalid,
+	output [ADDR_WIDTH - 1 : 0] araddr,
+	input  arready,
+
+	//r
+	output rready,
+	input  [1:0] rresp,
+	input  rvalid,
+	input  [DATA_WIDTH - 1 : 0] rdata,
+
+	//aw  
+	output reg awvalid,
+	output [ADDR_WIDTH - 1 : 0] awaddr,
+	input  awready,
+
+	//w
+	output reg wvalid,
+	input  wready,
+	output [DATA_WIDTH - 1 : 0] wdata,
+	output [DATA_WIDTH - 1 : 0] wstrb,
+
+	//b
+	output bready,
+	input  [1:0] bresp,
+	input  bvalid
 
 
 );
@@ -26,18 +53,13 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 	assign exe_to_id_ready = ~exe_valid || mem_to_exe_ready;
 
 	//AXI
-	reg arvalid;
-	wire arready;
-	reg awvalid;
-	wire awready;
-	reg wvalid;
-	wire wready;
-	wire rvalid;
-	wire rready = rvalid;
-	wire [1:0] rresp;
-	wire bvalid;
-	wire bready = bvalid;
-	wire [1:0] bresp;
+	assign araddr = aluResult;
+	assign rready = rvalid;
+
+	assign awaddr = aluResult;
+	assign wdata = store_data;
+	assign wstrb = {{(DATA_WIDTH - 4){1'b0}}, store_mask};
+	assign bready = bvalid;
 
 	reg send_request_ar_aw;
 	reg send_request_w;
@@ -116,41 +138,12 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32)(
 		.aluResult(aluResult)
 	);
 
-	wire [DATA_WIDTH - 1 : 0] load_data;
-	//防止对齐位宽 这里设置为DATA_WIDTH
-	wire [DATA_WIDTH - 1 : 0] rlen = load_inst == 3'h1 || load_inst == 3'h4 ? 'h1 :
-									 load_inst == 3'h2 || load_inst == 3'h5 ? 'h2 :
-									 'h4;
-
-
-	LSU_SRAM lsu_sram (
-	  .clk(clk),
-	  .rst(rst),
-	  .arvalid(arvalid),
-	  .araddr(aluResult),
-	  .arready(arready),
-	  .rready(rready),
-	  .rvalid(rvalid),
-	  .rresp(rresp),
-	  .rdata(load_data),
-	  .awvalid(awvalid), // 未使用写通道
-	  .awaddr(aluResult),
-	  .awready(awready),
-	  .wvalid(wvalid),
-	  .wstrb(store_mask),
-	  .wdata(store_data),
-	  .wready(wready),
-	  .bready(bready),
-	  .bvalid(bvalid),
-	  .bresp(bresp)
-	);
-
 	assign exe_to_mem_bus = {
 		d_regW,
 		d_regAddr,
 		aluResult,
 		load_inst,
-		load_data
+		rdata
 	};
 
 endmodule
@@ -233,135 +226,4 @@ module alu #(DATA_WIDTH = 32)(
  	    			  | ({DATA_WIDTH{op_lui       }} & lui_result)
  	    			  | ({DATA_WIDTH{op_sll       }} & sll_result)
  	    			  | ({DATA_WIDTH{op_srl|op_sra}} & sr_result);
-endmodule
-
-module LSU_SRAM #(
-  parameter DATA_WIDTH = 32,
-  parameter ADDR_WIDTH = 32
-)(
-  input clk,
-  input rst,
-
-  //ar  
-  input arvalid,
-  input [ADDR_WIDTH - 1 : 0] araddr,
-  output arready,
-
-  //r
-  input rready,
-  output reg [1:0] rresp,
-  output reg rvalid,
-  output reg [DATA_WIDTH - 1 : 0] rdata,
-
-  //aw
-  input awvalid,
-  input [ADDR_WIDTH - 1 : 0] awaddr,
-  output awready,
-
-  //w
-  input wvalid,
-  input [3:0] wstrb,
-  input [DATA_WIDTH - 1 : 0] wdata,
-  output wready,
-
-  //b
-  input bready,
-  output reg bvalid,
-  output reg [1:0] bresp
-);
-  	assign arready = 1'b1; //总是可以接受读请求
-	assign awready = 1'b1; //总是可以接受写请求
-
-	reg [ADDR_WIDTH - 1 : 0] reg_araddr;
-
-	reg [3:0] delay_cnt;
-	reg pending_read;
-
-	wire [3:0] rand_delay;
-	lfsr4 lfsr(.clk(clk), .rst(rst), .rnd(rand_delay));
-
-	// 通过 DPI-C 从内存读
-	import "DPI-C" function bit[DATA_WIDTH - 1 : 0] vaddr_read(input bit[ADDR_WIDTH - 1 : 0] raddr,input bit[DATA_WIDTH - 1 : 0] len);
-  	always @(posedge clk) begin
-   		if(rst) begin
-      		rvalid <= 1'b0;
-			pending_read <= 1'b0;
-		end else begin
-			if(arvalid && arready && ~pending_read) begin
-				reg_araddr <= araddr;
-
-				delay_cnt <= rand_delay % 8;
-				pending_read <= 'b1;
-			end else if(pending_read) begin 
-				if(delay_cnt == 'b0) begin
-					pending_read <= 'b0;
-   		   			rdata <= vaddr_read(reg_araddr, 'h4); //不支持rlen 那么就直接读4B
-   	 	  			rvalid <= 1'b1;
-   	  	 			rresp <= 2'b0;
-				end else delay_cnt <= delay_cnt - 'b1;
-			end
-			if(rvalid && rready) rvalid <= 'b0; //不应该放在else if中 因为可能会少复位rvalid
-		end
-  	end
-
-	// aw 和 w 通道应该是解耦的 即允许同时发送awaddr和wdata
-	// 因此需要使用reg暂存发来的wdata wstrb awaddr
-	// 当他们都有效时 就可以发送写请求
-	reg [ADDR_WIDTH - 1 : 0] reg_awaddr;
-	reg [DATA_WIDTH - 1 : 0] reg_wdata;
-	reg [3 : 0] reg_wstrb;
-	reg aw_regValid;
-	reg w_regValid;
-
-	reg pending_write;
-
-	assign awready = ~aw_regValid;
-	assign wready = ~w_regValid;
-
-	wire [DATA_WIDTH - 1 : 0] func_wlen = reg_wstrb == 'h1 ? 'h1 :
-									 reg_wstrb == 'h3 ? 'h2 :
-									 'h4;
-	wire [DATA_WIDTH - 1 : 0] func_wdata = reg_wstrb == 'h1 ? {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[7:0]} :
-									  reg_wstrb == 'h3 ? {{(DATA_WIDTH - 16){1'b0}}, reg_wdata[15:0]} :
-									  reg_wdata[31:0];
-
-	import "DPI-C" function void vaddr_write(input bit[ADDR_WIDTH - 1 : 0] waddr,input bit[DATA_WIDTH - 1 : 0] wlen,input bit[DATA_WIDTH - 1 : 0] wdata);
-	always @(posedge clk) begin
-		if(rst) begin
-			bvalid <= 1'b0;
-			aw_regValid <= 1'b0;
-			w_regValid <= 1'b0;
-			pending_write <= 1'b0;
-		end else begin
-			if(awready && awvalid) begin
-				aw_regValid <= 1'b1;
-				reg_awaddr <= awaddr;
-			end
-
-			if(wready && wvalid) begin
-				w_regValid <= 1'b1;
-				reg_wdata <= wdata;
-				reg_wstrb <= wstrb;
-			end
-
-			if(aw_regValid && w_regValid && ~pending_write) begin
-				pending_write <= 1'b1;
-				delay_cnt <= rand_delay % 8;
-			end else if(pending_write) begin
-				if(delay_cnt == 'b0) begin
-					pending_write <= 1'b0;
-					aw_regValid <= 1'b0;
-					w_regValid <= 1'b0;
-					vaddr_write(reg_awaddr, func_wlen, func_wdata);
-					bvalid <= 1'b1;
-					bresp <= 2'b0;
-				end else delay_cnt <= delay_cnt - 'b1;
-			end
-
-			if(bvalid && bready) begin
-				bvalid <= 1'b0;
-			end
-		end
-	end
-	
 endmodule
