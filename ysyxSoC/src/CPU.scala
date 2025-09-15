@@ -13,13 +13,17 @@ object CPUAXI4BundleParameters {
   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
 }
 
-class ysyx_00000000 extends BlackBox {
+class npc_top extends BlackBox {
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Reset())
     val io_interrupt = Input(Bool())
     val io_master = AXI4Bundle(CPUAXI4BundleParameters())
     val io_slave = Flipped(AXI4Bundle(CPUAXI4BundleParameters()))
+    val dnpc = Output(UInt(32.W))
+    val pc = Output(UInt(32.W))
+    val inst = Output(UInt(32.W))
+    val update_dut = Output(Bool())
   })
 }
 
@@ -32,14 +36,24 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (master, _) = masterNode.out(0)
+    val pc = IO(Output(UInt(32.W)))
+    val dnpc = IO(Output(UInt(32.W)))
+    val inst = IO(Output(UInt(32.W)))
+    val update_dut = IO(Output(Bool()))
     val interrupt = IO(Input(Bool()))
     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
 
-    val cpu = Module(new ysyx_00000000)
+    val cpu = Module(new npc_top)
     cpu.io.clock := clock
     cpu.io.reset := reset
     cpu.io.io_interrupt := interrupt
     cpu.io.io_slave <> slave
+
+    pc := cpu.io.pc
+    dnpc := cpu.io.dnpc
+    inst := cpu.io.inst
+    update_dut := cpu.io.update_dut
+    
     master <> cpu.io.io_master
   }
 }

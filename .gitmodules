@@ -4,3 +4,9 @@
 [submodule "am-kernels/tests/riscv-arch-test-am"]
 	path = am-kernels/tests/riscv-arch-test-am
 	url = https://github.com/NJU-ProjectN/riscv-arch-test-am
+[submodule "rocket-chip"]
+	path = ysyxSoC/rocket-chip
+	url = git@github.com:chipsalliance/rocket-chip.git
+[submodule "ysyxSoC/rocket-chip"]
+	path = ysyxSoC/rocket-chip
+	url = git@github.com:chipsalliance/rocket-chip.git

@@ -11,28 +11,40 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 	output [DATA_WIDTH * 2 + REG_ADDR_WIDTH + 4 - 1 : 0]exe_to_mem_bus,
 
 	//ar  
-	output reg arvalid,
-	output [ADDR_WIDTH - 1 : 0] araddr,
 	input  arready,
+	output reg arvalid,
+  	output [3 : 0] arid,
+  	output [7 : 0] arlen,
+  	output [2 : 0] arsize,
+  	output [1 : 0] arburst,
+	output [ADDR_WIDTH - 1 : 0] araddr,
 
 	//r
-	output rready,
-	input  [1:0] rresp,
-	input  rvalid,
-	input  [DATA_WIDTH - 1 : 0] rdata,
+  	input  rvalid,
+  	output rready,
+  	input  rlast,
+  	input  [3 : 0] rid,
+  	input  [1 : 0] rresp,
+  	input  [DATA_WIDTH - 1 : 0] rdata,
 
 	//aw  
-	output reg awvalid,
-	output [ADDR_WIDTH - 1 : 0] awaddr,
 	input  awready,
+	output reg awvalid,
+  	output [3 : 0] awid,
+  	output [7 : 0] awlen,
+  	output [2 : 0] awsize,
+  	output [1 : 0] awburst,
+	output [ADDR_WIDTH - 1 : 0] awaddr,
 
 	//w
-	output reg wvalid,
 	input  wready,
+	output reg wvalid,
+	output wlast,
+	output [3 : 0] wstrb,
 	output [DATA_WIDTH - 1 : 0] wdata,
-	output [DATA_WIDTH - 1 : 0] wstrb,
 
 	//b
+	input  [3:0] bid,
 	output bready,
 	input  [1:0] bresp,
 	input  bvalid
@@ -53,19 +65,38 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 	assign exe_to_id_ready = ~exe_valid || mem_to_exe_ready;
 
 	//AXI
+	assign arid = 'h1;
+	assign arlen = 'h0; //最多就是读32位 一次transfer就可以
+	//rv32地址是对齐的 不对齐访问触发ALE异常
+	assign arsize = load_inst == 3'b001 || load_inst == 3'b100 ? 'h0 :
+					load_inst == 3'b010 || load_inst == 3'b101 ? 'h1 :
+					'h2;
+	assign arburst = 'h0;
 	assign araddr = aluResult;
 	assign rready = rvalid;
 
+	assign awid = 'h0;
+	assign awlen = 'h0;
+	assign awsize = store_mask == 'h1 ? 'h0 :
+					store_mask == 'h3 ? 'h1 :
+					'h2;
+	assign awburst = 'h0;
 	assign awaddr = aluResult;
-	assign wdata = store_data;
-	assign wstrb = {{(DATA_WIDTH - 4){1'b0}}, store_mask};
+
+	assign wlast = 'h1;
+	assign wdata = store_mask == 'h1 ? (awaddr[1:0] == 'h0 ? store_data : awaddr[1:0] == 'h1 ? store_data << 8 : awaddr[1:0] == 'h2 ? store_data << 16 : store_data << 24) : 
+				   store_mask == 'h3 ? (awaddr[1:0] == 'h0 ? store_data : store_data << 16) :
+				   store_data;
+	assign wstrb = store_mask == 'h1 ? (awaddr[1:0] == 'h0 ? 'h1 : awaddr[1:0] == 'h1 ? 'h2 : awaddr[1:0] == 'h2 ? 'h4 : 'h8) : 
+				   store_mask == 'h3 ? (awaddr[1:0] == 'h0 ? 'h3 : 'hc) :
+				   'hf;
 	assign bready = bvalid;
 
 	reg send_request_ar_aw;
 	reg send_request_w;
 
-	assign exe_to_mem_valid = exe_valid && load_inst != 3'b0 ? rvalid && rready && rresp == 2'b0 : 
-							  exe_valid && store_mask != 4'b0 ? bvalid && bready && bresp == 2'b0 :
+	assign exe_to_mem_valid = exe_valid && load_inst != 3'b0 ? rid == 'h1 && rvalid && rready && rlast && rresp == 2'b0 : 
+							  exe_valid && store_mask != 4'b0 ? bid == 'h0 && bvalid && bready && bresp == 2'b0 :
 							  exe_valid;
 
 
@@ -113,11 +144,11 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 				end 
 			end
 
-			if(rvalid && rready) begin
+			if(rvalid && rready && rid == 'h1 && rlast) begin
 				send_request_ar_aw <= 1'b0;
 			end
 
-			if(bvalid && bready) begin
+			if(bvalid && bready && bid == 'h0) begin
 				send_request_ar_aw <= 1'b0;
 				send_request_w <= 1'b0;
 			end

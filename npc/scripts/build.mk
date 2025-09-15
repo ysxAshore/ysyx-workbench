@@ -1,6 +1,11 @@
 .DEFAULT_GOAL = app
 
-TOPNAME = top
+ifneq ($(CONFIG_YSYXSOC),)
+TOPNAME = ysyxSoCFull
+else
+TOPNAME = npc_top
+endif
+
 WORK_DIR  = $(shell pwd)
 BUILD_DIR = $(WORK_DIR)/build
 $(shell mkdir -p $(BUILD_DIR))

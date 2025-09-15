@@ -22,56 +22,92 @@ module AXI4Xbar(
                 reset,
   output        auto_anon_in_awready,
   input         auto_anon_in_awvalid,
+  input  [3:0]  auto_anon_in_awid,
   input  [31:0] auto_anon_in_awaddr,
+  input  [7:0]  auto_anon_in_awlen,
   input  [2:0]  auto_anon_in_awsize,
+  input  [1:0]  auto_anon_in_awburst,
   output        auto_anon_in_wready,
   input         auto_anon_in_wvalid,
   input  [31:0] auto_anon_in_wdata,
   input  [3:0]  auto_anon_in_wstrb,
-  input         auto_anon_in_bready,
+  input         auto_anon_in_wlast,
+                auto_anon_in_bready,
   output        auto_anon_in_bvalid,
-                auto_anon_in_arready,
+  output [3:0]  auto_anon_in_bid,
+  output [1:0]  auto_anon_in_bresp,
+  output        auto_anon_in_arready,
   input         auto_anon_in_arvalid,
+  input  [3:0]  auto_anon_in_arid,
   input  [31:0] auto_anon_in_araddr,
+  input  [7:0]  auto_anon_in_arlen,
   input  [2:0]  auto_anon_in_arsize,
+  input  [1:0]  auto_anon_in_arburst,
   input         auto_anon_in_rready,
   output        auto_anon_in_rvalid,
+  output [3:0]  auto_anon_in_rid,
   output [31:0] auto_anon_in_rdata,
+  output [1:0]  auto_anon_in_rresp,
+  output        auto_anon_in_rlast,
   input         auto_anon_out_awready,
   output        auto_anon_out_awvalid,
+  output [3:0]  auto_anon_out_awid,
   output [31:0] auto_anon_out_awaddr,
+  output [7:0]  auto_anon_out_awlen,
   output [2:0]  auto_anon_out_awsize,
+  output [1:0]  auto_anon_out_awburst,
   input         auto_anon_out_wready,
   output        auto_anon_out_wvalid,
   output [31:0] auto_anon_out_wdata,
   output [3:0]  auto_anon_out_wstrb,
-  output        auto_anon_out_bready,
+  output        auto_anon_out_wlast,
+                auto_anon_out_bready,
   input         auto_anon_out_bvalid,
-                auto_anon_out_arready,
+  input  [3:0]  auto_anon_out_bid,
+  input  [1:0]  auto_anon_out_bresp,
+  input         auto_anon_out_arready,
   output        auto_anon_out_arvalid,
+  output [3:0]  auto_anon_out_arid,
   output [31:0] auto_anon_out_araddr,
+  output [7:0]  auto_anon_out_arlen,
   output [2:0]  auto_anon_out_arsize,
+  output [1:0]  auto_anon_out_arburst,
   output        auto_anon_out_rready,
   input         auto_anon_out_rvalid,
-  input  [31:0] auto_anon_out_rdata
+  input  [3:0]  auto_anon_out_rid,
+  input  [31:0] auto_anon_out_rdata,
+  input  [1:0]  auto_anon_out_rresp,
+  input         auto_anon_out_rlast
 );
 
   assign auto_anon_in_awready = auto_anon_out_awready;
   assign auto_anon_in_wready = auto_anon_out_wready;
   assign auto_anon_in_bvalid = auto_anon_out_bvalid;
+  assign auto_anon_in_bid = auto_anon_out_bid;
+  assign auto_anon_in_bresp = auto_anon_out_bresp;
   assign auto_anon_in_arready = auto_anon_out_arready;
   assign auto_anon_in_rvalid = auto_anon_out_rvalid;
+  assign auto_anon_in_rid = auto_anon_out_rid;
   assign auto_anon_in_rdata = auto_anon_out_rdata;
+  assign auto_anon_in_rresp = auto_anon_out_rresp;
+  assign auto_anon_in_rlast = auto_anon_out_rlast;
   assign auto_anon_out_awvalid = auto_anon_in_awvalid;
+  assign auto_anon_out_awid = auto_anon_in_awid;
   assign auto_anon_out_awaddr = auto_anon_in_awaddr;
+  assign auto_anon_out_awlen = auto_anon_in_awlen;
   assign auto_anon_out_awsize = auto_anon_in_awsize;
+  assign auto_anon_out_awburst = auto_anon_in_awburst;
   assign auto_anon_out_wvalid = auto_anon_in_wvalid;
   assign auto_anon_out_wdata = auto_anon_in_wdata;
   assign auto_anon_out_wstrb = auto_anon_in_wstrb;
+  assign auto_anon_out_wlast = auto_anon_in_wlast;
   assign auto_anon_out_bready = auto_anon_in_bready;
   assign auto_anon_out_arvalid = auto_anon_in_arvalid;
+  assign auto_anon_out_arid = auto_anon_in_arid;
   assign auto_anon_out_araddr = auto_anon_in_araddr;
+  assign auto_anon_out_arlen = auto_anon_in_arlen;
   assign auto_anon_out_arsize = auto_anon_in_arsize;
+  assign auto_anon_out_arburst = auto_anon_in_arburst;
   assign auto_anon_out_rready = auto_anon_in_rready;
 endmodule
 
@@ -215,21 +251,33 @@ module MemBridge(
   input  [3:0]  io_lsu_wmask,
   input         io_out_awready,
   output        io_out_awvalid,
+  output [3:0]  io_out_awid,
   output [31:0] io_out_awaddr,
+  output [7:0]  io_out_awlen,
   output [2:0]  io_out_awsize,
+  output [1:0]  io_out_awburst,
   input         io_out_wready,
   output        io_out_wvalid,
   output [31:0] io_out_wdata,
   output [3:0]  io_out_wstrb,
-  output        io_out_bready,
+  output        io_out_wlast,
+                io_out_bready,
   input         io_out_bvalid,
-                io_out_arready,
+  input  [3:0]  io_out_bid,
+  input  [1:0]  io_out_bresp,
+  input         io_out_arready,
   output        io_out_arvalid,
+  output [3:0]  io_out_arid,
   output [31:0] io_out_araddr,
+  output [7:0]  io_out_arlen,
   output [2:0]  io_out_arsize,
+  output [1:0]  io_out_arburst,
   output        io_out_rready,
   input         io_out_rvalid,
-  input  [31:0] io_out_rdata
+  input  [3:0]  io_out_rid,
+  input  [31:0] io_out_rdata,
+  input  [1:0]  io_out_rresp,
+  input         io_out_rlast
 );
 
   wire        isValidLoad = io_lsu_reqValid & ~io_lsu_wen;
@@ -311,16 +359,23 @@ module MemBridge(
     _io_lsu_respValid_T & io_out_rvalid | io_out_bready_0 & io_out_bvalid;
   assign io_out_awvalid =
     |{_io_out_wvalid_T & isValidStore, _io_out_awvalid_T_3, _io_out_awvalid_T_2};
+  assign io_out_awid = 4'h0;
   assign io_out_awaddr = io_lsu_addr;
+  assign io_out_awlen = 8'h0;
   assign io_out_awsize = {1'h0, io_lsu_size};
+  assign io_out_awburst = 2'h0;
   assign io_out_wvalid = _io_out_wvalid_T & isValidStore | _io_out_wvalid_T_2;
   assign io_out_wdata = io_lsu_wdata;
   assign io_out_wstrb = io_lsu_wmask;
+  assign io_out_wlast = 1'h1;
   assign io_out_bready = io_out_bready_0;
   assign io_out_arvalid =
     _io_out_arvalid_T & io_ifu_reqValid | _io_out_arvalid_T_2 | lsuRead;
+  assign io_out_arid = 4'h0;
   assign io_out_araddr = lsuRead ? io_lsu_addr : io_ifu_addr;
+  assign io_out_arlen = 8'h0;
   assign io_out_arsize = {1'h0, lsuRead ? io_lsu_size : 2'h2};
+  assign io_out_arburst = 2'h0;
   assign io_out_rready = _instReturn_T | _io_lsu_respValid_T;
 endmodule
 
@@ -329,21 +384,33 @@ module CPU(
                 reset,
                 auto_master_out_awready,
   output        auto_master_out_awvalid,
+  output [3:0]  auto_master_out_awid,
   output [31:0] auto_master_out_awaddr,
+  output [7:0]  auto_master_out_awlen,
   output [2:0]  auto_master_out_awsize,
+  output [1:0]  auto_master_out_awburst,
   input         auto_master_out_wready,
   output        auto_master_out_wvalid,
   output [31:0] auto_master_out_wdata,
   output [3:0]  auto_master_out_wstrb,
-  output        auto_master_out_bready,
+  output        auto_master_out_wlast,
+                auto_master_out_bready,
   input         auto_master_out_bvalid,
-                auto_master_out_arready,
+  input  [3:0]  auto_master_out_bid,
+  input  [1:0]  auto_master_out_bresp,
+  input         auto_master_out_arready,
   output        auto_master_out_arvalid,
+  output [3:0]  auto_master_out_arid,
   output [31:0] auto_master_out_araddr,
+  output [7:0]  auto_master_out_arlen,
   output [2:0]  auto_master_out_arsize,
+  output [1:0]  auto_master_out_arburst,
   output        auto_master_out_rready,
   input         auto_master_out_rvalid,
-  input  [31:0] auto_master_out_rdata
+  input  [3:0]  auto_master_out_rid,
+  input  [31:0] auto_master_out_rdata,
+  input  [1:0]  auto_master_out_rresp,
+  input         auto_master_out_rlast
 );
 
   wire [31:0] _bridge_io_ifu_rdata;
@@ -375,37 +442,49 @@ module CPU(
     .io_lsu_wmask     (_cpu_io_lsu_wmask)
   );
   MemBridge bridge (
-    .clock               (clock),
-    .reset               (reset),
-    .io_ifu_addr         (_cpu_io_ifu_addr),
-    .io_ifu_reqValid     (_cpu_io_ifu_reqValid),
-    .io_ifu_rdata        (_bridge_io_ifu_rdata),
-    .io_ifu_respValid    (_bridge_io_ifu_respValid),
-    .io_lsu_addr         (_cpu_io_lsu_addr),
-    .io_lsu_reqValid     (_cpu_io_lsu_reqValid),
-    .io_lsu_rdata        (_bridge_io_lsu_rdata),
-    .io_lsu_respValid    (_bridge_io_lsu_respValid),
-    .io_lsu_size         (_cpu_io_lsu_size),
-    .io_lsu_wen          (_cpu_io_lsu_wen),
-    .io_lsu_wdata        (_cpu_io_lsu_wdata),
-    .io_lsu_wmask        (_cpu_io_lsu_wmask),
-    .io_out_awready     (auto_master_out_awready),
-    .io_out_awvalid     (auto_master_out_awvalid),
-    .io_out_awaddr (auto_master_out_awaddr),
-    .io_out_awsize (auto_master_out_awsize),
-    .io_out_wready      (auto_master_out_wready),
-    .io_out_wvalid      (auto_master_out_wvalid),
-    .io_out_wdata  (auto_master_out_wdata),
-    .io_out_wstrb  (auto_master_out_wstrb),
-    .io_out_bready      (auto_master_out_bready),
-    .io_out_bvalid      (auto_master_out_bvalid),
-    .io_out_arready     (auto_master_out_arready),
-    .io_out_arvalid     (auto_master_out_arvalid),
-    .io_out_araddr (auto_master_out_araddr),
-    .io_out_arsize (auto_master_out_arsize),
-    .io_out_rready      (auto_master_out_rready),
-    .io_out_rvalid      (auto_master_out_rvalid),
-    .io_out_rdata  (auto_master_out_rdata)
+    .clock                (clock),
+    .reset                (reset),
+    .io_ifu_addr          (_cpu_io_ifu_addr),
+    .io_ifu_reqValid      (_cpu_io_ifu_reqValid),
+    .io_ifu_rdata         (_bridge_io_ifu_rdata),
+    .io_ifu_respValid     (_bridge_io_ifu_respValid),
+    .io_lsu_addr          (_cpu_io_lsu_addr),
+    .io_lsu_reqValid      (_cpu_io_lsu_reqValid),
+    .io_lsu_rdata         (_bridge_io_lsu_rdata),
+    .io_lsu_respValid     (_bridge_io_lsu_respValid),
+    .io_lsu_size          (_cpu_io_lsu_size),
+    .io_lsu_wen           (_cpu_io_lsu_wen),
+    .io_lsu_wdata         (_cpu_io_lsu_wdata),
+    .io_lsu_wmask         (_cpu_io_lsu_wmask),
+    .io_out_awready      (auto_master_out_awready),
+    .io_out_awvalid      (auto_master_out_awvalid),
+    .io_out_awid    (auto_master_out_awid),
+    .io_out_awaddr  (auto_master_out_awaddr),
+    .io_out_awlen   (auto_master_out_awlen),
+    .io_out_awsize  (auto_master_out_awsize),
+    .io_out_awburst (auto_master_out_awburst),
+    .io_out_wready       (auto_master_out_wready),
+    .io_out_wvalid       (auto_master_out_wvalid),
+    .io_out_wdata   (auto_master_out_wdata),
+    .io_out_wstrb   (auto_master_out_wstrb),
+    .io_out_wlast   (auto_master_out_wlast),
+    .io_out_bready       (auto_master_out_bready),
+    .io_out_bvalid       (auto_master_out_bvalid),
+    .io_out_bid     (auto_master_out_bid),
+    .io_out_bresp   (auto_master_out_bresp),
+    .io_out_arready      (auto_master_out_arready),
+    .io_out_arvalid      (auto_master_out_arvalid),
+    .io_out_arid    (auto_master_out_arid),
+    .io_out_araddr  (auto_master_out_araddr),
+    .io_out_arlen   (auto_master_out_arlen),
+    .io_out_arsize  (auto_master_out_arsize),
+    .io_out_arburst (auto_master_out_arburst),
+    .io_out_rready       (auto_master_out_rready),
+    .io_out_rvalid       (auto_master_out_rvalid),
+    .io_out_rid     (auto_master_out_rid),
+    .io_out_rdata   (auto_master_out_rdata),
+    .io_out_rresp   (auto_master_out_rresp),
+    .io_out_rlast   (auto_master_out_rlast)
   );
 endmodule
 
@@ -652,6 +731,7 @@ module AXI4ToAPB(
                 reset,
   output        auto_in_awready,
   input         auto_in_awvalid,
+  input  [3:0]  auto_in_awid,
   input  [31:0] auto_in_awaddr,
   input  [7:0]  auto_in_awlen,
   input  [2:0]  auto_in_awsize,
@@ -661,7 +741,9 @@ module AXI4ToAPB(
   input  [3:0]  auto_in_wstrb,
   input         auto_in_bready,
   output        auto_in_bvalid,
-                auto_in_arready,
+  output [3:0]  auto_in_bid,
+  output [1:0]  auto_in_bresp,
+  output        auto_in_arready,
   input         auto_in_arvalid,
   input  [3:0]  auto_in_arid,
   input  [31:0] auto_in_araddr,
@@ -720,6 +802,7 @@ module AXI4ToAPB(
     end // always @(posedge)
   `endif // not def SYNTHESIS
   reg  [3:0]  rid_reg;
+  reg  [3:0]  bid_reg;
   reg  [31:0] araddr_reg_r;
   reg  [31:0] awaddr_reg_r;
   reg  [31:0] wdata_reg_r;
@@ -727,6 +810,7 @@ module AXI4ToAPB(
   assign nodeOut_penable = state == 2'h1;
   wire [1:0]  resp = {auto_out_pslverr, 1'h0};
   reg  [1:0]  resp_hold_r;
+  wire [1:0]  resp_hold = nodeOut_penable ? resp : resp_hold_r;
   wire        _nodeIn_bvalid_T_2 = state == 2'h2;
   wire        nodeIn_rvalid =
     ~is_write & (nodeOut_penable & auto_out_pready | _nodeIn_bvalid_T_2);
@@ -755,6 +839,7 @@ module AXI4ToAPB(
       araddr_reg_r <= auto_in_araddr;
     end
     if (accept_write) begin
+      bid_reg <= auto_in_awid;
       awaddr_reg_r <= auto_in_awaddr;
       wdata_reg_r <= auto_in_wdata;
       wstrb_reg_r <= auto_in_wstrb;
@@ -780,6 +865,7 @@ module AXI4ToAPB(
         state = _RANDOM[3'h0][1:0];
         is_write_r = _RANDOM[3'h0][2];
         rid_reg = _RANDOM[3'h0][6:3];
+        bid_reg = _RANDOM[3'h0][10:7];
         araddr_reg_r = {_RANDOM[3'h0][31:11], _RANDOM[3'h1][10:0]};
         awaddr_reg_r = {_RANDOM[3'h1][31:11], _RANDOM[3'h2][10:0]};
         wdata_reg_r = {_RANDOM[3'h2][31:11], _RANDOM[3'h3][10:0]};
@@ -795,11 +881,13 @@ module AXI4ToAPB(
   assign auto_in_awready = accept_write;
   assign auto_in_wready = accept_write;
   assign auto_in_bvalid = nodeIn_bvalid;
+  assign auto_in_bid = bid_reg;
+  assign auto_in_bresp = resp_hold;
   assign auto_in_arready = accept_read;
   assign auto_in_rvalid = nodeIn_rvalid;
   assign auto_in_rid = rid_reg;
   assign auto_in_rdata = nodeOut_penable ? auto_out_prdata : nodeIn_rdata_r;
-  assign auto_in_rresp = nodeOut_penable ? resp : resp_hold_r;
+  assign auto_in_rresp = resp_hold;
   assign auto_out_psel = accept_read | accept_write | nodeOut_penable;
   assign auto_out_penable = nodeOut_penable;
   assign auto_out_pwrite = is_write;
@@ -826,18 +914,18 @@ endmodule
 `endif // not def SYNTHESIS
 
 // VCS coverage exclude_file
-module ram_2x43(
+module ram_2x47(
   input         R0_addr,
                 R0_en,
                 R0_clk,
-  output [42:0] R0_data,
+  output [46:0] R0_data,
   input         W0_addr,
                 W0_en,
                 W0_clk,
-  input  [42:0] W0_data
+  input  [46:0] W0_data
 );
 
-  reg [42:0] Memory[0:1];
+  reg [46:0] Memory[0:1];
   always @(posedge W0_clk) begin
     if (W0_en & 1'h1)
       Memory[W0_addr] <= W0_data;
@@ -851,12 +939,12 @@ module ram_2x43(
           for (logic [6:0] j = 7'h0; j < 7'h40; j += 7'h20) begin
             _RANDOM_MEM[j +: 32] = `RANDOM;
           end
-          Memory[i[0]] = _RANDOM_MEM[42:0];
+          Memory[i[0]] = _RANDOM_MEM[46:0];
         end
       `endif // RANDOMIZE_MEM_INIT
     end // initial
   `endif // ENABLE_INITIAL_MEM_
-  assign R0_data = R0_en ? Memory[R0_addr] : 43'bx;
+  assign R0_data = R0_en ? Memory[R0_addr] : 47'bx;
 endmodule
 
 module Queue2_AXI4BundleAW(
@@ -864,16 +952,20 @@ module Queue2_AXI4BundleAW(
                 reset,
   output        io_enq_ready,
   input         io_enq_valid,
+  input  [3:0]  io_enq_bits_id,
   input  [31:0] io_enq_bits_addr,
+  input  [7:0]  io_enq_bits_len,
   input  [2:0]  io_enq_bits_size,
+  input  [1:0]  io_enq_bits_burst,
   input         io_deq_ready,
   output        io_deq_valid,
+  output [3:0]  io_deq_bits_id,
   output [31:0] io_deq_bits_addr,
   output [7:0]  io_deq_bits_len,
   output [2:0]  io_deq_bits_size
 );
 
-  wire [42:0] _ram_ext_R0_data;
+  wire [46:0] _ram_ext_R0_data;
   reg         wrap;
   reg         wrap_1;
   reg         maybe_full;
@@ -917,7 +1009,7 @@ module Queue2_AXI4BundleAW(
       `FIRRTL_AFTER_INITIAL
     `endif // FIRRTL_AFTER_INITIAL
   `endif // ENABLE_INITIAL_REG_
-  ram_2x43 ram_ext (
+  ram_2x47 ram_ext (
     .R0_addr (wrap_1),
     .R0_en   (1'h1),
     .R0_clk  (clock),
@@ -925,10 +1017,11 @@ module Queue2_AXI4BundleAW(
     .W0_addr (wrap),
     .W0_en   (do_enq),
     .W0_clk  (clock),
-    .W0_data ({io_enq_bits_addr, 8'h0, io_enq_bits_size})
+    .W0_data ({io_enq_bits_id, io_enq_bits_addr, io_enq_bits_len, io_enq_bits_size})
   );
   assign io_enq_ready = ~full;
   assign io_deq_valid = ~empty;
+  assign io_deq_bits_id = _ram_ext_R0_data[46:43];
   assign io_deq_bits_addr = _ram_ext_R0_data[42:11];
   assign io_deq_bits_len = _ram_ext_R0_data[10:3];
   assign io_deq_bits_size = _ram_ext_R0_data[2:0];
@@ -975,7 +1068,8 @@ module Queue2_AXI4BundleW(
   input         io_enq_valid,
   input  [31:0] io_enq_bits_data,
   input  [3:0]  io_enq_bits_strb,
-  input         io_deq_ready,
+  input         io_enq_bits_last,
+                io_deq_ready,
   output        io_deq_valid,
   output [31:0] io_deq_bits_data,
   output [3:0]  io_deq_bits_strb
@@ -1041,21 +1135,59 @@ module Queue2_AXI4BundleW(
   assign io_deq_bits_strb = _ram_ext_R0_data[3:0];
 endmodule
 
-module Queue2_AXI4BundleB(
-  input  clock,
-         reset,
-  output io_enq_ready,
-  input  io_enq_valid,
-         io_deq_ready,
-  output io_deq_valid
+// VCS coverage exclude_file
+module ram_2x6(
+  input        R0_addr,
+               R0_en,
+               R0_clk,
+  output [5:0] R0_data,
+  input        W0_addr,
+               W0_en,
+               W0_clk,
+  input  [5:0] W0_data
 );
 
-  reg  wrap;
-  reg  wrap_1;
-  reg  maybe_full;
-  wire ptr_match = wrap == wrap_1;
-  wire empty = ptr_match & ~maybe_full;
-  wire full = ptr_match & maybe_full;
+  reg [5:0] Memory[0:1];
+  always @(posedge W0_clk) begin
+    if (W0_en & 1'h1)
+      Memory[W0_addr] <= W0_data;
+  end // always @(posedge)
+  `ifdef ENABLE_INITIAL_MEM_
+    reg [31:0] _RANDOM_MEM;
+    initial begin
+      `INIT_RANDOM_PROLOG_
+      `ifdef RANDOMIZE_MEM_INIT
+        for (logic [1:0] i = 2'h0; i < 2'h2; i += 2'h1) begin
+          _RANDOM_MEM = `RANDOM;
+          Memory[i[0]] = _RANDOM_MEM[5:0];
+        end
+      `endif // RANDOMIZE_MEM_INIT
+    end // initial
+  `endif // ENABLE_INITIAL_MEM_
+  assign R0_data = R0_en ? Memory[R0_addr] : 6'bx;
+endmodule
+
+module Queue2_AXI4BundleB(
+  input        clock,
+               reset,
+  output       io_enq_ready,
+  input        io_enq_valid,
+  input  [3:0] io_enq_bits_id,
+  input  [1:0] io_enq_bits_resp,
+  input        io_deq_ready,
+  output       io_deq_valid,
+  output [3:0] io_deq_bits_id,
+  output [1:0] io_deq_bits_resp
+);
+
+  wire [5:0] _ram_ext_R0_data;
+  reg        wrap;
+  reg        wrap_1;
+  reg        maybe_full;
+  wire       ptr_match = wrap == wrap_1;
+  wire       empty = ptr_match & ~maybe_full;
+  wire       full = ptr_match & maybe_full;
+  wire       do_enq = ~full & io_enq_valid;
   always @(posedge clock) begin
     if (reset) begin
       wrap <= 1'h0;
@@ -1063,9 +1195,7 @@ module Queue2_AXI4BundleB(
       maybe_full <= 1'h0;
     end
     else begin
-      automatic logic do_enq;
       automatic logic do_deq = io_deq_ready & ~empty;
-      do_enq = ~full & io_enq_valid;
       if (do_enq)
         wrap <= wrap - 1'h1;
       if (do_deq)
@@ -1094,42 +1224,20 @@ module Queue2_AXI4BundleB(
       `FIRRTL_AFTER_INITIAL
     `endif // FIRRTL_AFTER_INITIAL
   `endif // ENABLE_INITIAL_REG_
+  ram_2x6 ram_ext (
+    .R0_addr (wrap_1),
+    .R0_en   (1'h1),
+    .R0_clk  (clock),
+    .R0_data (_ram_ext_R0_data),
+    .W0_addr (wrap),
+    .W0_en   (do_enq),
+    .W0_clk  (clock),
+    .W0_data ({io_enq_bits_id, io_enq_bits_resp})
+  );
   assign io_enq_ready = ~full;
   assign io_deq_valid = ~empty;
-endmodule
-
-// VCS coverage exclude_file
-module ram_2x47(
-  input         R0_addr,
-                R0_en,
-                R0_clk,
-  output [46:0] R0_data,
-  input         W0_addr,
-                W0_en,
-                W0_clk,
-  input  [46:0] W0_data
-);
-
-  reg [46:0] Memory[0:1];
-  always @(posedge W0_clk) begin
-    if (W0_en & 1'h1)
-      Memory[W0_addr] <= W0_data;
-  end // always @(posedge)
-  `ifdef ENABLE_INITIAL_MEM_
-    reg [63:0] _RANDOM_MEM;
-    initial begin
-      `INIT_RANDOM_PROLOG_
-      `ifdef RANDOMIZE_MEM_INIT
-        for (logic [1:0] i = 2'h0; i < 2'h2; i += 2'h1) begin
-          for (logic [6:0] j = 7'h0; j < 7'h40; j += 7'h20) begin
-            _RANDOM_MEM[j +: 32] = `RANDOM;
-          end
-          Memory[i[0]] = _RANDOM_MEM[46:0];
-        end
-      `endif // RANDOMIZE_MEM_INIT
-    end // initial
-  `endif // ENABLE_INITIAL_MEM_
-  assign R0_data = R0_en ? Memory[R0_addr] : 47'bx;
+  assign io_deq_bits_id = _ram_ext_R0_data[5:2];
+  assign io_deq_bits_resp = _ram_ext_R0_data[1:0];
 endmodule
 
 module Queue2_AXI4BundleAR(
@@ -1137,8 +1245,11 @@ module Queue2_AXI4BundleAR(
                 reset,
   output        io_enq_ready,
   input         io_enq_valid,
+  input  [3:0]  io_enq_bits_id,
   input  [31:0] io_enq_bits_addr,
+  input  [7:0]  io_enq_bits_len,
   input  [2:0]  io_enq_bits_size,
+  input  [1:0]  io_enq_bits_burst,
   input         io_deq_ready,
   output        io_deq_valid,
   output [3:0]  io_deq_bits_id,
@@ -1199,7 +1310,7 @@ module Queue2_AXI4BundleAR(
     .W0_addr (wrap),
     .W0_en   (do_enq),
     .W0_clk  (clock),
-    .W0_data ({4'h0, io_enq_bits_addr, 8'h0, io_enq_bits_size})
+    .W0_data ({io_enq_bits_id, io_enq_bits_addr, io_enq_bits_len, io_enq_bits_size})
   );
   assign io_enq_ready = ~full;
   assign io_deq_valid = ~empty;
@@ -1210,35 +1321,37 @@ module Queue2_AXI4BundleAR(
 endmodule
 
 // VCS coverage exclude_file
-module ram_2x32(
+module ram_2x39(
   input         R0_addr,
                 R0_en,
                 R0_clk,
-  output [31:0] R0_data,
+  output [38:0] R0_data,
   input         W0_addr,
                 W0_en,
                 W0_clk,
-  input  [31:0] W0_data
+  input  [38:0] W0_data
 );
 
-  reg [31:0] Memory[0:1];
+  reg [38:0] Memory[0:1];
   always @(posedge W0_clk) begin
     if (W0_en & 1'h1)
       Memory[W0_addr] <= W0_data;
   end // always @(posedge)
   `ifdef ENABLE_INITIAL_MEM_
-    reg [31:0] _RANDOM_MEM;
+    reg [63:0] _RANDOM_MEM;
     initial begin
       `INIT_RANDOM_PROLOG_
       `ifdef RANDOMIZE_MEM_INIT
         for (logic [1:0] i = 2'h0; i < 2'h2; i += 2'h1) begin
-          _RANDOM_MEM = `RANDOM;
-          Memory[i[0]] = _RANDOM_MEM;
+          for (logic [6:0] j = 7'h0; j < 7'h40; j += 7'h20) begin
+            _RANDOM_MEM[j +: 32] = `RANDOM;
+          end
+          Memory[i[0]] = _RANDOM_MEM[38:0];
         end
       `endif // RANDOMIZE_MEM_INIT
     end // initial
   `endif // ENABLE_INITIAL_MEM_
-  assign R0_data = R0_en ? Memory[R0_addr] : 32'bx;
+  assign R0_data = R0_en ? Memory[R0_addr] : 39'bx;
 endmodule
 
 module Queue2_AXI4BundleR(
@@ -1251,16 +1364,20 @@ module Queue2_AXI4BundleR(
   input  [1:0]  io_enq_bits_resp,
   input         io_deq_ready,
   output        io_deq_valid,
-  output [31:0] io_deq_bits_data
+  output [3:0]  io_deq_bits_id,
+  output [31:0] io_deq_bits_data,
+  output [1:0]  io_deq_bits_resp,
+  output        io_deq_bits_last
 );
 
-  reg  wrap;
-  reg  wrap_1;
-  reg  maybe_full;
-  wire ptr_match = wrap == wrap_1;
-  wire empty = ptr_match & ~maybe_full;
-  wire full = ptr_match & maybe_full;
-  wire do_enq = ~full & io_enq_valid;
+  wire [38:0] _ram_ext_R0_data;
+  reg         wrap;
+  reg         wrap_1;
+  reg         maybe_full;
+  wire        ptr_match = wrap == wrap_1;
+  wire        empty = ptr_match & ~maybe_full;
+  wire        full = ptr_match & maybe_full;
+  wire        do_enq = ~full & io_enq_valid;
   always @(posedge clock) begin
     if (reset) begin
       wrap <= 1'h0;
@@ -1297,18 +1414,22 @@ module Queue2_AXI4BundleR(
       `FIRRTL_AFTER_INITIAL
     `endif // FIRRTL_AFTER_INITIAL
   `endif // ENABLE_INITIAL_REG_
-  ram_2x32 ram_ext (
+  ram_2x39 ram_ext (
     .R0_addr (wrap_1),
     .R0_en   (1'h1),
     .R0_clk  (clock),
-    .R0_data (io_deq_bits_data),
+    .R0_data (_ram_ext_R0_data),
     .W0_addr (wrap),
     .W0_en   (do_enq),
     .W0_clk  (clock),
-    .W0_data (io_enq_bits_data)
+    .W0_data ({io_enq_bits_id, io_enq_bits_data, io_enq_bits_resp, 1'h1})
   );
   assign io_enq_ready = ~full;
   assign io_deq_valid = ~empty;
+  assign io_deq_bits_id = _ram_ext_R0_data[38:35];
+  assign io_deq_bits_data = _ram_ext_R0_data[34:3];
+  assign io_deq_bits_resp = _ram_ext_R0_data[2:1];
+  assign io_deq_bits_last = _ram_ext_R0_data[0];
 endmodule
 
 module AXI4Buffer(
@@ -1316,23 +1437,36 @@ module AXI4Buffer(
                 reset,
   output        auto_in_awready,
   input         auto_in_awvalid,
+  input  [3:0]  auto_in_awid,
   input  [31:0] auto_in_awaddr,
+  input  [7:0]  auto_in_awlen,
   input  [2:0]  auto_in_awsize,
+  input  [1:0]  auto_in_awburst,
   output        auto_in_wready,
   input         auto_in_wvalid,
   input  [31:0] auto_in_wdata,
   input  [3:0]  auto_in_wstrb,
-  input         auto_in_bready,
+  input         auto_in_wlast,
+                auto_in_bready,
   output        auto_in_bvalid,
-                auto_in_arready,
+  output [3:0]  auto_in_bid,
+  output [1:0]  auto_in_bresp,
+  output        auto_in_arready,
   input         auto_in_arvalid,
+  input  [3:0]  auto_in_arid,
   input  [31:0] auto_in_araddr,
+  input  [7:0]  auto_in_arlen,
   input  [2:0]  auto_in_arsize,
+  input  [1:0]  auto_in_arburst,
   input         auto_in_rready,
   output        auto_in_rvalid,
+  output [3:0]  auto_in_rid,
   output [31:0] auto_in_rdata,
+  output [1:0]  auto_in_rresp,
+  output        auto_in_rlast,
   input         auto_out_awready,
   output        auto_out_awvalid,
+  output [3:0]  auto_out_awid,
   output [31:0] auto_out_awaddr,
   output [7:0]  auto_out_awlen,
   output [2:0]  auto_out_awsize,
@@ -1342,7 +1476,9 @@ module AXI4Buffer(
   output [3:0]  auto_out_wstrb,
   output        auto_out_bready,
   input         auto_out_bvalid,
-                auto_out_arready,
+  input  [3:0]  auto_out_bid,
+  input  [1:0]  auto_out_bresp,
+  input         auto_out_arready,
   output        auto_out_arvalid,
   output [3:0]  auto_out_arid,
   output [31:0] auto_out_araddr,
@@ -1356,17 +1492,21 @@ module AXI4Buffer(
 );
 
   Queue2_AXI4BundleAW nodeOut_awdeq_q (
-    .clock            (clock),
-    .reset            (reset),
-    .io_enq_ready     (auto_in_awready),
-    .io_enq_valid     (auto_in_awvalid),
-    .io_enq_bits_addr (auto_in_awaddr),
-    .io_enq_bits_size (auto_in_awsize),
-    .io_deq_ready     (auto_out_awready),
-    .io_deq_valid     (auto_out_awvalid),
-    .io_deq_bits_addr (auto_out_awaddr),
-    .io_deq_bits_len  (auto_out_awlen),
-    .io_deq_bits_size (auto_out_awsize)
+    .clock             (clock),
+    .reset             (reset),
+    .io_enq_ready      (auto_in_awready),
+    .io_enq_valid      (auto_in_awvalid),
+    .io_enq_bits_id    (auto_in_awid),
+    .io_enq_bits_addr  (auto_in_awaddr),
+    .io_enq_bits_len   (auto_in_awlen),
+    .io_enq_bits_size  (auto_in_awsize),
+    .io_enq_bits_burst (auto_in_awburst),
+    .io_deq_ready      (auto_out_awready),
+    .io_deq_valid      (auto_out_awvalid),
+    .io_deq_bits_id    (auto_out_awid),
+    .io_deq_bits_addr  (auto_out_awaddr),
+    .io_deq_bits_len   (auto_out_awlen),
+    .io_deq_bits_size  (auto_out_awsize)
   );
   Queue2_AXI4BundleW nodeOut_wdeq_q (
     .clock            (clock),
@@ -1375,32 +1515,40 @@ module AXI4Buffer(
     .io_enq_valid     (auto_in_wvalid),
     .io_enq_bits_data (auto_in_wdata),
     .io_enq_bits_strb (auto_in_wstrb),
+    .io_enq_bits_last (auto_in_wlast),
     .io_deq_ready     (auto_out_wready),
     .io_deq_valid     (auto_out_wvalid),
     .io_deq_bits_data (auto_out_wdata),
     .io_deq_bits_strb (auto_out_wstrb)
   );
   Queue2_AXI4BundleB nodeIn_bdeq_q (
-    .clock        (clock),
-    .reset        (reset),
-    .io_enq_ready (auto_out_bready),
-    .io_enq_valid (auto_out_bvalid),
-    .io_deq_ready (auto_in_bready),
-    .io_deq_valid (auto_in_bvalid)
-  );
-  Queue2_AXI4BundleAR nodeOut_ardeq_q (
     .clock            (clock),
     .reset            (reset),
-    .io_enq_ready     (auto_in_arready),
-    .io_enq_valid     (auto_in_arvalid),
-    .io_enq_bits_addr (auto_in_araddr),
-    .io_enq_bits_size (auto_in_arsize),
-    .io_deq_ready     (auto_out_arready),
-    .io_deq_valid     (auto_out_arvalid),
-    .io_deq_bits_id   (auto_out_arid),
-    .io_deq_bits_addr (auto_out_araddr),
-    .io_deq_bits_len  (auto_out_arlen),
-    .io_deq_bits_size (auto_out_arsize)
+    .io_enq_ready     (auto_out_bready),
+    .io_enq_valid     (auto_out_bvalid),
+    .io_enq_bits_id   (auto_out_bid),
+    .io_enq_bits_resp (auto_out_bresp),
+    .io_deq_ready     (auto_in_bready),
+    .io_deq_valid     (auto_in_bvalid),
+    .io_deq_bits_id   (auto_in_bid),
+    .io_deq_bits_resp (auto_in_bresp)
+  );
+  Queue2_AXI4BundleAR nodeOut_ardeq_q (
+    .clock             (clock),
+    .reset             (reset),
+    .io_enq_ready      (auto_in_arready),
+    .io_enq_valid      (auto_in_arvalid),
+    .io_enq_bits_id    (auto_in_arid),
+    .io_enq_bits_addr  (auto_in_araddr),
+    .io_enq_bits_len   (auto_in_arlen),
+    .io_enq_bits_size  (auto_in_arsize),
+    .io_enq_bits_burst (auto_in_arburst),
+    .io_deq_ready      (auto_out_arready),
+    .io_deq_valid      (auto_out_arvalid),
+    .io_deq_bits_id    (auto_out_arid),
+    .io_deq_bits_addr  (auto_out_araddr),
+    .io_deq_bits_len   (auto_out_arlen),
+    .io_deq_bits_size  (auto_out_arsize)
   );
   Queue2_AXI4BundleR nodeIn_rdeq_q (
     .clock            (clock),
@@ -1412,7 +1560,10 @@ module AXI4Buffer(
     .io_enq_bits_resp (auto_out_rresp),
     .io_deq_ready     (auto_in_rready),
     .io_deq_valid     (auto_in_rvalid),
-    .io_deq_bits_data (auto_in_rdata)
+    .io_deq_bits_id   (auto_in_rid),
+    .io_deq_bits_data (auto_in_rdata),
+    .io_deq_bits_resp (auto_in_rresp),
+    .io_deq_bits_last (auto_in_rlast)
   );
 endmodule
 
@@ -1512,10 +1663,16 @@ module ysyxSoCASIC(
   wire        _axi4buf_auto_in_awready;
   wire        _axi4buf_auto_in_wready;
   wire        _axi4buf_auto_in_bvalid;
+  wire [3:0]  _axi4buf_auto_in_bid;
+  wire [1:0]  _axi4buf_auto_in_bresp;
   wire        _axi4buf_auto_in_arready;
   wire        _axi4buf_auto_in_rvalid;
+  wire [3:0]  _axi4buf_auto_in_rid;
   wire [31:0] _axi4buf_auto_in_rdata;
+  wire [1:0]  _axi4buf_auto_in_rresp;
+  wire        _axi4buf_auto_in_rlast;
   wire        _axi4buf_auto_out_awvalid;
+  wire [3:0]  _axi4buf_auto_out_awid;
   wire [31:0] _axi4buf_auto_out_awaddr;
   wire [7:0]  _axi4buf_auto_out_awlen;
   wire [2:0]  _axi4buf_auto_out_awsize;
@@ -1532,6 +1689,8 @@ module ysyxSoCASIC(
   wire        _axi42apb_auto_in_awready;
   wire        _axi42apb_auto_in_wready;
   wire        _axi42apb_auto_in_bvalid;
+  wire [3:0]  _axi42apb_auto_in_bid;
+  wire [1:0]  _axi42apb_auto_in_bresp;
   wire        _axi42apb_auto_in_arready;
   wire        _axi42apb_auto_in_rvalid;
   wire [3:0]  _axi42apb_auto_in_rid;
@@ -1562,15 +1721,22 @@ module ysyxSoCASIC(
   wire        _luart_auto_in_pslverr;
   wire [31:0] _luart_auto_in_prdata;
   wire        _cpu_auto_master_out_awvalid;
+  wire [3:0]  _cpu_auto_master_out_awid;
   wire [31:0] _cpu_auto_master_out_awaddr;
+  wire [7:0]  _cpu_auto_master_out_awlen;
   wire [2:0]  _cpu_auto_master_out_awsize;
+  wire [1:0]  _cpu_auto_master_out_awburst;
   wire        _cpu_auto_master_out_wvalid;
   wire [31:0] _cpu_auto_master_out_wdata;
   wire [3:0]  _cpu_auto_master_out_wstrb;
+  wire        _cpu_auto_master_out_wlast;
   wire        _cpu_auto_master_out_bready;
   wire        _cpu_auto_master_out_arvalid;
+  wire [3:0]  _cpu_auto_master_out_arid;
   wire [31:0] _cpu_auto_master_out_araddr;
+  wire [7:0]  _cpu_auto_master_out_arlen;
   wire [2:0]  _cpu_auto_master_out_arsize;
+  wire [1:0]  _cpu_auto_master_out_arburst;
   wire        _cpu_auto_master_out_rready;
   wire        _apbxbar_auto_anon_in_pready;
   wire        _apbxbar_auto_anon_in_pslverr;
@@ -1599,57 +1765,93 @@ module ysyxSoCASIC(
   wire        _axi4xbar_auto_anon_in_awready;
   wire        _axi4xbar_auto_anon_in_wready;
   wire        _axi4xbar_auto_anon_in_bvalid;
+  wire [3:0]  _axi4xbar_auto_anon_in_bid;
+  wire [1:0]  _axi4xbar_auto_anon_in_bresp;
   wire        _axi4xbar_auto_anon_in_arready;
   wire        _axi4xbar_auto_anon_in_rvalid;
+  wire [3:0]  _axi4xbar_auto_anon_in_rid;
   wire [31:0] _axi4xbar_auto_anon_in_rdata;
+  wire [1:0]  _axi4xbar_auto_anon_in_rresp;
+  wire        _axi4xbar_auto_anon_in_rlast;
   wire        _axi4xbar_auto_anon_out_awvalid;
+  wire [3:0]  _axi4xbar_auto_anon_out_awid;
   wire [31:0] _axi4xbar_auto_anon_out_awaddr;
+  wire [7:0]  _axi4xbar_auto_anon_out_awlen;
   wire [2:0]  _axi4xbar_auto_anon_out_awsize;
+  wire [1:0]  _axi4xbar_auto_anon_out_awburst;
   wire        _axi4xbar_auto_anon_out_wvalid;
   wire [31:0] _axi4xbar_auto_anon_out_wdata;
   wire [3:0]  _axi4xbar_auto_anon_out_wstrb;
+  wire        _axi4xbar_auto_anon_out_wlast;
   wire        _axi4xbar_auto_anon_out_bready;
   wire        _axi4xbar_auto_anon_out_arvalid;
+  wire [3:0]  _axi4xbar_auto_anon_out_arid;
   wire [31:0] _axi4xbar_auto_anon_out_araddr;
+  wire [7:0]  _axi4xbar_auto_anon_out_arlen;
   wire [2:0]  _axi4xbar_auto_anon_out_arsize;
+  wire [1:0]  _axi4xbar_auto_anon_out_arburst;
   wire        _axi4xbar_auto_anon_out_rready;
   AXI4Xbar axi4xbar (
-    .clock                      (clock),
-    .reset                      (reset),
-    .auto_anon_in_awready      (_axi4xbar_auto_anon_in_awready),
-    .auto_anon_in_awvalid      (_cpu_auto_master_out_awvalid),
-    .auto_anon_in_awaddr  (_cpu_auto_master_out_awaddr),
-    .auto_anon_in_awsize  (_cpu_auto_master_out_awsize),
-    .auto_anon_in_wready       (_axi4xbar_auto_anon_in_wready),
-    .auto_anon_in_wvalid       (_cpu_auto_master_out_wvalid),
-    .auto_anon_in_wdata   (_cpu_auto_master_out_wdata),
-    .auto_anon_in_wstrb   (_cpu_auto_master_out_wstrb),
-    .auto_anon_in_bready       (_cpu_auto_master_out_bready),
-    .auto_anon_in_bvalid       (_axi4xbar_auto_anon_in_bvalid),
-    .auto_anon_in_arready      (_axi4xbar_auto_anon_in_arready),
-    .auto_anon_in_arvalid      (_cpu_auto_master_out_arvalid),
-    .auto_anon_in_araddr  (_cpu_auto_master_out_araddr),
-    .auto_anon_in_arsize  (_cpu_auto_master_out_arsize),
-    .auto_anon_in_rready       (_cpu_auto_master_out_rready),
-    .auto_anon_in_rvalid       (_axi4xbar_auto_anon_in_rvalid),
-    .auto_anon_in_rdata   (_axi4xbar_auto_anon_in_rdata),
-    .auto_anon_out_awready     (_axi4buf_auto_in_awready),
-    .auto_anon_out_awvalid     (_axi4xbar_auto_anon_out_awvalid),
-    .auto_anon_out_awaddr (_axi4xbar_auto_anon_out_awaddr),
-    .auto_anon_out_awsize (_axi4xbar_auto_anon_out_awsize),
-    .auto_anon_out_wready      (_axi4buf_auto_in_wready),
-    .auto_anon_out_wvalid      (_axi4xbar_auto_anon_out_wvalid),
-    .auto_anon_out_wdata  (_axi4xbar_auto_anon_out_wdata),
-    .auto_anon_out_wstrb  (_axi4xbar_auto_anon_out_wstrb),
-    .auto_anon_out_bready      (_axi4xbar_auto_anon_out_bready),
-    .auto_anon_out_bvalid      (_axi4buf_auto_in_bvalid),
-    .auto_anon_out_arready     (_axi4buf_auto_in_arready),
-    .auto_anon_out_arvalid     (_axi4xbar_auto_anon_out_arvalid),
-    .auto_anon_out_araddr (_axi4xbar_auto_anon_out_araddr),
-    .auto_anon_out_arsize (_axi4xbar_auto_anon_out_arsize),
-    .auto_anon_out_rready      (_axi4xbar_auto_anon_out_rready),
-    .auto_anon_out_rvalid      (_axi4buf_auto_in_rvalid),
-    .auto_anon_out_rdata  (_axi4buf_auto_in_rdata)
+    .clock                       (clock),
+    .reset                       (reset),
+    .auto_anon_in_awready       (_axi4xbar_auto_anon_in_awready),
+    .auto_anon_in_awvalid       (_cpu_auto_master_out_awvalid),
+    .auto_anon_in_awid     (_cpu_auto_master_out_awid),
+    .auto_anon_in_awaddr   (_cpu_auto_master_out_awaddr),
+    .auto_anon_in_awlen    (_cpu_auto_master_out_awlen),
+    .auto_anon_in_awsize   (_cpu_auto_master_out_awsize),
+    .auto_anon_in_awburst  (_cpu_auto_master_out_awburst),
+    .auto_anon_in_wready        (_axi4xbar_auto_anon_in_wready),
+    .auto_anon_in_wvalid        (_cpu_auto_master_out_wvalid),
+    .auto_anon_in_wdata    (_cpu_auto_master_out_wdata),
+    .auto_anon_in_wstrb    (_cpu_auto_master_out_wstrb),
+    .auto_anon_in_wlast    (_cpu_auto_master_out_wlast),
+    .auto_anon_in_bready        (_cpu_auto_master_out_bready),
+    .auto_anon_in_bvalid        (_axi4xbar_auto_anon_in_bvalid),
+    .auto_anon_in_bid      (_axi4xbar_auto_anon_in_bid),
+    .auto_anon_in_bresp    (_axi4xbar_auto_anon_in_bresp),
+    .auto_anon_in_arready       (_axi4xbar_auto_anon_in_arready),
+    .auto_anon_in_arvalid       (_cpu_auto_master_out_arvalid),
+    .auto_anon_in_arid     (_cpu_auto_master_out_arid),
+    .auto_anon_in_araddr   (_cpu_auto_master_out_araddr),
+    .auto_anon_in_arlen    (_cpu_auto_master_out_arlen),
+    .auto_anon_in_arsize   (_cpu_auto_master_out_arsize),
+    .auto_anon_in_arburst  (_cpu_auto_master_out_arburst),
+    .auto_anon_in_rready        (_cpu_auto_master_out_rready),
+    .auto_anon_in_rvalid        (_axi4xbar_auto_anon_in_rvalid),
+    .auto_anon_in_rid      (_axi4xbar_auto_anon_in_rid),
+    .auto_anon_in_rdata    (_axi4xbar_auto_anon_in_rdata),
+    .auto_anon_in_rresp    (_axi4xbar_auto_anon_in_rresp),
+    .auto_anon_in_rlast    (_axi4xbar_auto_anon_in_rlast),
+    .auto_anon_out_awready      (_axi4buf_auto_in_awready),
+    .auto_anon_out_awvalid      (_axi4xbar_auto_anon_out_awvalid),
+    .auto_anon_out_awid    (_axi4xbar_auto_anon_out_awid),
+    .auto_anon_out_awaddr  (_axi4xbar_auto_anon_out_awaddr),
+    .auto_anon_out_awlen   (_axi4xbar_auto_anon_out_awlen),
+    .auto_anon_out_awsize  (_axi4xbar_auto_anon_out_awsize),
+    .auto_anon_out_awburst (_axi4xbar_auto_anon_out_awburst),
+    .auto_anon_out_wready       (_axi4buf_auto_in_wready),
+    .auto_anon_out_wvalid       (_axi4xbar_auto_anon_out_wvalid),
+    .auto_anon_out_wdata   (_axi4xbar_auto_anon_out_wdata),
+    .auto_anon_out_wstrb   (_axi4xbar_auto_anon_out_wstrb),
+    .auto_anon_out_wlast   (_axi4xbar_auto_anon_out_wlast),
+    .auto_anon_out_bready       (_axi4xbar_auto_anon_out_bready),
+    .auto_anon_out_bvalid       (_axi4buf_auto_in_bvalid),
+    .auto_anon_out_bid     (_axi4buf_auto_in_bid),
+    .auto_anon_out_bresp   (_axi4buf_auto_in_bresp),
+    .auto_anon_out_arready      (_axi4buf_auto_in_arready),
+    .auto_anon_out_arvalid      (_axi4xbar_auto_anon_out_arvalid),
+    .auto_anon_out_arid    (_axi4xbar_auto_anon_out_arid),
+    .auto_anon_out_araddr  (_axi4xbar_auto_anon_out_araddr),
+    .auto_anon_out_arlen   (_axi4xbar_auto_anon_out_arlen),
+    .auto_anon_out_arsize  (_axi4xbar_auto_anon_out_arsize),
+    .auto_anon_out_arburst (_axi4xbar_auto_anon_out_arburst),
+    .auto_anon_out_rready       (_axi4xbar_auto_anon_out_rready),
+    .auto_anon_out_rvalid       (_axi4buf_auto_in_rvalid),
+    .auto_anon_out_rid     (_axi4buf_auto_in_rid),
+    .auto_anon_out_rdata   (_axi4buf_auto_in_rdata),
+    .auto_anon_out_rresp   (_axi4buf_auto_in_rresp),
+    .auto_anon_out_rlast   (_axi4buf_auto_in_rlast)
   );
   APBFanout apbxbar (
     .auto_anon_in_psel       (_apbdelay_delayer_out_psel),
@@ -1693,25 +1895,37 @@ module ysyxSoCASIC(
     .auto_anon_out_0_prdata  (_lspi_auto_in_prdata)
   );
   CPU cpu (
-    .clock                        (clock),
-    .reset                        (_cpu_reset_chain_io_q | reset),
-    .auto_master_out_awready     (_axi4xbar_auto_anon_in_awready),
-    .auto_master_out_awvalid     (_cpu_auto_master_out_awvalid),
-    .auto_master_out_awaddr (_cpu_auto_master_out_awaddr),
-    .auto_master_out_awsize (_cpu_auto_master_out_awsize),
-    .auto_master_out_wready      (_axi4xbar_auto_anon_in_wready),
-    .auto_master_out_wvalid      (_cpu_auto_master_out_wvalid),
-    .auto_master_out_wdata  (_cpu_auto_master_out_wdata),
-    .auto_master_out_wstrb  (_cpu_auto_master_out_wstrb),
-    .auto_master_out_bready      (_cpu_auto_master_out_bready),
-    .auto_master_out_bvalid      (_axi4xbar_auto_anon_in_bvalid),
-    .auto_master_out_arready     (_axi4xbar_auto_anon_in_arready),
-    .auto_master_out_arvalid     (_cpu_auto_master_out_arvalid),
-    .auto_master_out_araddr (_cpu_auto_master_out_araddr),
-    .auto_master_out_arsize (_cpu_auto_master_out_arsize),
-    .auto_master_out_rready      (_cpu_auto_master_out_rready),
-    .auto_master_out_rvalid      (_axi4xbar_auto_anon_in_rvalid),
-    .auto_master_out_rdata  (_axi4xbar_auto_anon_in_rdata)
+    .clock                         (clock),
+    .reset                         (_cpu_reset_chain_io_q | reset),
+    .auto_master_out_awready      (_axi4xbar_auto_anon_in_awready),
+    .auto_master_out_awvalid      (_cpu_auto_master_out_awvalid),
+    .auto_master_out_awid    (_cpu_auto_master_out_awid),
+    .auto_master_out_awaddr  (_cpu_auto_master_out_awaddr),
+    .auto_master_out_awlen   (_cpu_auto_master_out_awlen),
+    .auto_master_out_awsize  (_cpu_auto_master_out_awsize),
+    .auto_master_out_awburst (_cpu_auto_master_out_awburst),
+    .auto_master_out_wready       (_axi4xbar_auto_anon_in_wready),
+    .auto_master_out_wvalid       (_cpu_auto_master_out_wvalid),
+    .auto_master_out_wdata   (_cpu_auto_master_out_wdata),
+    .auto_master_out_wstrb   (_cpu_auto_master_out_wstrb),
+    .auto_master_out_wlast   (_cpu_auto_master_out_wlast),
+    .auto_master_out_bready       (_cpu_auto_master_out_bready),
+    .auto_master_out_bvalid       (_axi4xbar_auto_anon_in_bvalid),
+    .auto_master_out_bid     (_axi4xbar_auto_anon_in_bid),
+    .auto_master_out_bresp   (_axi4xbar_auto_anon_in_bresp),
+    .auto_master_out_arready      (_axi4xbar_auto_anon_in_arready),
+    .auto_master_out_arvalid      (_cpu_auto_master_out_arvalid),
+    .auto_master_out_arid    (_cpu_auto_master_out_arid),
+    .auto_master_out_araddr  (_cpu_auto_master_out_araddr),
+    .auto_master_out_arlen   (_cpu_auto_master_out_arlen),
+    .auto_master_out_arsize  (_cpu_auto_master_out_arsize),
+    .auto_master_out_arburst (_cpu_auto_master_out_arburst),
+    .auto_master_out_rready       (_cpu_auto_master_out_rready),
+    .auto_master_out_rvalid       (_axi4xbar_auto_anon_in_rvalid),
+    .auto_master_out_rid     (_axi4xbar_auto_anon_in_rid),
+    .auto_master_out_rdata   (_axi4xbar_auto_anon_in_rdata),
+    .auto_master_out_rresp   (_axi4xbar_auto_anon_in_rresp),
+    .auto_master_out_rlast   (_axi4xbar_auto_anon_in_rlast)
   );
   APBUart16550 luart (
     .clock           (clock),
@@ -1799,6 +2013,7 @@ module ysyxSoCASIC(
     .reset                (reset),
     .auto_in_awready     (_axi42apb_auto_in_awready),
     .auto_in_awvalid     (_axi4buf_auto_out_awvalid),
+    .auto_in_awid   (_axi4buf_auto_out_awid),
     .auto_in_awaddr (_axi4buf_auto_out_awaddr),
     .auto_in_awlen  (_axi4buf_auto_out_awlen),
     .auto_in_awsize (_axi4buf_auto_out_awsize),
@@ -1808,6 +2023,8 @@ module ysyxSoCASIC(
     .auto_in_wstrb  (_axi4buf_auto_out_wstrb),
     .auto_in_bready      (_axi4buf_auto_out_bready),
     .auto_in_bvalid      (_axi42apb_auto_in_bvalid),
+    .auto_in_bid    (_axi42apb_auto_in_bid),
+    .auto_in_bresp  (_axi42apb_auto_in_bresp),
     .auto_in_arready     (_axi42apb_auto_in_arready),
     .auto_in_arvalid     (_axi4buf_auto_out_arvalid),
     .auto_in_arid   (_axi4buf_auto_out_arid),
@@ -1834,23 +2051,36 @@ module ysyxSoCASIC(
     .reset                 (reset),
     .auto_in_awready      (_axi4buf_auto_in_awready),
     .auto_in_awvalid      (_axi4xbar_auto_anon_out_awvalid),
+    .auto_in_awid    (_axi4xbar_auto_anon_out_awid),
     .auto_in_awaddr  (_axi4xbar_auto_anon_out_awaddr),
+    .auto_in_awlen   (_axi4xbar_auto_anon_out_awlen),
     .auto_in_awsize  (_axi4xbar_auto_anon_out_awsize),
+    .auto_in_awburst (_axi4xbar_auto_anon_out_awburst),
     .auto_in_wready       (_axi4buf_auto_in_wready),
     .auto_in_wvalid       (_axi4xbar_auto_anon_out_wvalid),
     .auto_in_wdata   (_axi4xbar_auto_anon_out_wdata),
     .auto_in_wstrb   (_axi4xbar_auto_anon_out_wstrb),
+    .auto_in_wlast   (_axi4xbar_auto_anon_out_wlast),
     .auto_in_bready       (_axi4xbar_auto_anon_out_bready),
     .auto_in_bvalid       (_axi4buf_auto_in_bvalid),
+    .auto_in_bid     (_axi4buf_auto_in_bid),
+    .auto_in_bresp   (_axi4buf_auto_in_bresp),
     .auto_in_arready      (_axi4buf_auto_in_arready),
     .auto_in_arvalid      (_axi4xbar_auto_anon_out_arvalid),
+    .auto_in_arid    (_axi4xbar_auto_anon_out_arid),
     .auto_in_araddr  (_axi4xbar_auto_anon_out_araddr),
+    .auto_in_arlen   (_axi4xbar_auto_anon_out_arlen),
     .auto_in_arsize  (_axi4xbar_auto_anon_out_arsize),
+    .auto_in_arburst (_axi4xbar_auto_anon_out_arburst),
     .auto_in_rready       (_axi4xbar_auto_anon_out_rready),
     .auto_in_rvalid       (_axi4buf_auto_in_rvalid),
+    .auto_in_rid     (_axi4buf_auto_in_rid),
     .auto_in_rdata   (_axi4buf_auto_in_rdata),
+    .auto_in_rresp   (_axi4buf_auto_in_rresp),
+    .auto_in_rlast   (_axi4buf_auto_in_rlast),
     .auto_out_awready     (_axi42apb_auto_in_awready),
     .auto_out_awvalid     (_axi4buf_auto_out_awvalid),
+    .auto_out_awid   (_axi4buf_auto_out_awid),
     .auto_out_awaddr (_axi4buf_auto_out_awaddr),
     .auto_out_awlen  (_axi4buf_auto_out_awlen),
     .auto_out_awsize (_axi4buf_auto_out_awsize),
@@ -1860,6 +2090,8 @@ module ysyxSoCASIC(
     .auto_out_wstrb  (_axi4buf_auto_out_wstrb),
     .auto_out_bready      (_axi4buf_auto_out_bready),
     .auto_out_bvalid      (_axi42apb_auto_in_bvalid),
+    .auto_out_bid    (_axi42apb_auto_in_bid),
+    .auto_out_bresp  (_axi42apb_auto_in_bresp),
     .auto_out_arready     (_axi42apb_auto_in_arready),
     .auto_out_arvalid     (_axi4buf_auto_out_arvalid),
     .auto_out_arid   (_axi4buf_auto_out_arid),

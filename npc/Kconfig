@@ -32,6 +32,18 @@ config RVE
 endmenu
 endif
 
+choice 
+  prompt "NPC execution environment"
+  default BARE_METAL
+
+config BARE_METAL
+  bool "bare metal environment"
+
+config YSYXSOC
+  bool "ysyxSoC environment"
+
+endchoice
+
 choice
   prompt "NPC execution engine"
   default ENGINE_INTERPRETER

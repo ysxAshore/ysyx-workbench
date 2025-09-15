@@ -15,14 +15,20 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
   input wb_to_if_done,
 
   //ar  
-  output reg arvalid,
-  output [ADDR_WIDTH - 1 : 0] araddr,
   input  arready,
+  output reg arvalid,
+  output [3 : 0] arid,
+  output [7 : 0] arlen,
+  output [2 : 0] arsize,
+  output [1 : 0] arburst,
+  output [ADDR_WIDTH - 1 : 0] araddr,
 
   //r
-  output rready,
-  input  [1:0] rresp,
   input  rvalid,
+  output rready,
+  input  rlast,
+  input  [3 : 0] rid,
+  input  [1 : 0] rresp,
   input  [DATA_WIDTH - 1 : 0] rdata
 );
 
@@ -34,8 +40,12 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
   reg [31:0] next_pc;
 
   // IFU连接的AXI读端口信号
-  assign rready = rvalid;
+  assign arid = 'b0; // 取指id是0 访存是1
+  assign arlen = 'h0; // 不做突发传输 一次transfer
+  assign arsize = 'h2; // 每次请求4B 
+  assign arburst = 'h0;
   assign araddr = fetch_pc;
+  assign rready = rvalid;
 
   // AXI 额外控制 控制不要重复发请求
   reg send_request;
@@ -49,12 +59,17 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
   assign if_to_id_ready = !fetch_valid || id_to_if_ready;
 
   // fetch_valid已经用来表示IF级的有效与否了
-  assign if_to_id_valid = fetch_valid && rvalid && rready;
+  // 只有当正确返回数据时 才置位if_to_id_valid 错误的话继续请求
+  assign if_to_id_valid = fetch_valid && rid == 'h0 && rvalid && rready && rlast && rresp == 'h0;
 
   always @(posedge clk) begin
     if (rst) begin
       arvalid <= 1'b0;
+      `ifdef YSYXSOC
+      fetch_pc <= 32'h2000_0000;
+      `else 
       fetch_pc <= 32'h8000_0000;
+      `endif
       fetch_valid <= 1'b1;
       send_request <= 1'b0;
     end else begin
@@ -78,7 +93,7 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
       end
 
       // 接收 rvalid 数据 
-      if (rvalid && rready) begin
+      if (rid == 'h0 && rvalid && rready && rlast) begin
         send_request <= 1'b0;
       end
 

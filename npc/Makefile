@@ -25,6 +25,19 @@ CSRCS-y += $(shell find -L $(DIRS-y) -name "*.c")
 CSRCS = $(filter-out $(CSRCS-BLACKLIST-y),$(CSRCS-y))
 VSRCS = $(shell find $(abspath ./vsrc) -name "*.v")
 
+ifneq ($(CONFIG_YSYXSOC),)
+VSRCS += $(shell find $(abspath ../ysyxSoC/perip) -name "*.v")
+VSRCS += ../ysyxSoC/build/ysyxSoCFull.v
+
+VERILATOR_INC := $(abspath ../ysyxSoC/perip/uart16550/rtl/)
+VERILATOR_INC += $(abspath ../ysyxSoC/perip/spi/rtl/)
+
+VERILATOR_INC_PATH = $(addprefix -y ,$(VERILATOR_INC))
+
+VERILATOR_MACRO += -DYSYXSOC=1
+
+endif
+
 # Extract compiler and options from menuconfig
 ifneq ($(CONFIG_VERILOG_COMPILER),)
 VERILATOR = $(call remove_quote,$(CONFIG_VERILOG_COMPILER))
@@ -34,21 +47,19 @@ ifneq ($(CONFIG_DIFFTEST_REF_NAME),"none")
 ARGS_DIFF = -d $(call remove_quote,$(CONFIG_DIFFTEST_REF_PATH))
 endif
 
-INC_PATH ?=
-
 ifdef CONFIG_RVE
-VERILATOR_MACRO = -DUSE_RVE=1
-else
-VERILATOR_MACRO =
+VERILATOR_MACRO += -DUSE_RVE=1
 endif
 
 ifdef CONFIG_FTRACE
 VERILATOR_MACRO += -DFTRACE=1
-else
 endif
+
 VERILATOR_CFLAGS += -MMD --build -cc --exe --trace\
 				-O3 --x-assign fast --x-initial fast --noassert\
+				--timescale "1ns/1ns" --no-timing\
 				$(VERILATOR_MACRO)\
+				$(VERILATOR_INC_PATH)\
 
 # Include rules for menuconfig
 include $(NPC_HOME)/scripts/config.mk

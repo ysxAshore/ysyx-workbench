@@ -77,3 +77,11 @@ void paddr_write(paddr_t addr, int len, word_t data)
   IFDEF(CONFIG_DEVICE, mmio_write(addr, len, data); return);
   out_of_bound(addr);
 }
+
+#ifdef CONFIG_YSYXSOC
+extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
+extern "C" void mrom_read(int32_t addr, int32_t *data)
+{
+  *data = 0x00100073;
+}
+#endif

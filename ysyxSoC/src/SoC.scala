@@ -59,7 +59,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
   class Impl extends LazyModuleImp(this) with DontTouch {
     // generate delayed reset for cpu, since chiplink should finish reset
     // to initialize some async modules before accept any requests from cpu
-    cpu.module.reset := SynchronizerShiftReg(reset.asBool, 10) || reset.asBool
+    cpu.module.reset := reset.asBool
 
     val fpga_io = if (Config.hasChipLink) Some(IO(chiselTypeOf(chipMaster.get.module.fpga_io))) else None
     if (Config.hasChipLink) {
@@ -78,6 +78,16 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
     // connect interrupt signal to cpu
     val intr_from_chipSlave = IO(Input(Bool()))
     cpu.module.interrupt := intr_from_chipSlave
+
+    val pc = IO(Output(UInt(32.W)))
+    val dnpc = IO(Output(UInt(32.W)))
+    val inst = IO(Output(UInt(32.W)))
+    val update_dut = IO(Output(Bool()))
+
+    pc := cpu.module.pc
+    dnpc := cpu.module.dnpc
+    inst := cpu.module.inst
+    update_dut := cpu.module.update_dut
 
     val sdramBundle = if (Config.sdramUseAXI) lsdram_axi.get.module.sdram_bundle
                       else                    lsdram_apb.get.module.sdram_bundle
@@ -131,6 +141,15 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
     }
 
     masic.intr_from_chipSlave := false.B
+    
+    val pc = IO(Output(UInt(32.W)))
+    val dnpc = IO(Output(UInt(32.W)))
+    val inst = IO(Output(UInt(32.W)))
+    val update_dut = IO(Output(Bool()))
+    pc := masic.pc
+    dnpc := masic.dnpc
+    inst := masic.inst
+    update_dut := masic.update_dut
 
     val flash = Module(new flash)
     flash.io <> masic.spi

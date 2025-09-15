@@ -18,7 +18,7 @@ CSRCS-BLACKLIST-y += csrc/utils/disasm.c
 else
 # capstone是一个反汇编引擎
 LIBCAPSTONE = $(NEMU_HOME)/tools/capstone/repo/libcapstone.so.5
-INC_PATH += -I $(NEMU_HOME)/tools/capstone/repo/include
+INC_PATH += $(NEMU_HOME)/tools/capstone/repo/include
 src/utils/disasm.c: $(LIBCAPSTONE)
 $(LIBCAPSTONE):
 	$(MAKE) -C $(NEMU_HOME)/tools/capstone
