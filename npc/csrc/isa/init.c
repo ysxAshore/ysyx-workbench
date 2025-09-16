@@ -55,8 +55,12 @@ void restart()
 
 void init_isa()
 {
-    /* Load built-in image. */
+/* Load built-in image. */
+#ifdef CONFIG_YSYXSOC
+    memcpy(guestMrom_to_hostMrom(YSYXSOC_RESET_VECTOR), img, sizeof(img));
+#else
     memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
+#endif
 
     /* Initialize this virtual computer system. */
     restart();

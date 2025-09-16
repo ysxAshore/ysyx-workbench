@@ -79,9 +79,15 @@ void paddr_write(paddr_t addr, int len, word_t data)
 }
 
 #ifdef CONFIG_YSYXSOC
-extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
+
+static uint8_t mrom[MROM_SIZE] PG_ALIGN = {};
+
+uint8_t *guestMrom_to_hostMrom(paddr_t paddr) { return mrom + paddr - MROM_BASE; }
+paddr_t hostMrom_to_guestMrom(uint8_t *haddr) { return haddr - mrom + MROM_BASE; }
 extern "C" void mrom_read(int32_t addr, int32_t *data)
 {
-  *data = 0x00100073;
+  *data = host_read(guestMrom_to_hostMrom(addr), 4);
 }
+
+extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
 #endif

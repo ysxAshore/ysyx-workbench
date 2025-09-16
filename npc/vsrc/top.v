@@ -2,7 +2,8 @@ module npc_top(
 	input 		  clock,
 	input         reset,
 	input io_interrupt,
-	
+
+`ifdef YSYXSOC
 	input io_master_awready,
 	output io_master_awvalid,
 	output [31:0] io_master_awaddr,
@@ -70,6 +71,7 @@ module npc_top(
 	output [3:0] io_slave_rid,
 	output io_slave_rlast,
 	output [31:0] io_slave_rdata,
+`endif
 
 	output reg [31:0] inst,
 	output reg [31:0] dnpc,
@@ -371,5 +373,77 @@ module npc_top(
 	    .bready     (io_master_bready),
 		.bid		(io_master_bid)
 	);
+
+`ifndef YSYXSOC
+	wire io_master_awready;
+	wire io_master_awvalid;
+	wire [31:0] io_master_awaddr;
+	wire [3:0] io_master_awid;
+	wire [7:0] io_master_awlen;
+	wire [2:0] io_master_awsize;
+	wire [1:0] io_master_awburst;
+	
+	wire io_master_wready;
+	wire io_master_wvalid;
+	wire [31:0] io_master_wdata;
+	wire [3:0] io_master_wstrb;
+	wire io_master_wlast;
+
+	wire io_master_bready;
+	wire io_master_bvalid;
+	wire [1:0] io_master_bresp;
+	wire [3:0] io_master_bid;
+
+	wire io_master_arready;
+	wire io_master_arvalid;
+	wire [31:0] io_master_araddr;
+	wire [3:0] io_master_arid;
+	wire [7:0] io_master_arlen;
+	wire [2:0] io_master_arsize;
+	wire [1:0] io_master_arburst;
+
+	wire io_master_rready;
+	wire io_master_rvalid;
+	wire [1:0] io_master_rresp;
+	wire [3:0] io_master_rid;
+	wire io_master_rlast;
+	wire [31:0] io_master_rdata;
+
+	axi4lite_sram sram(
+		.clk(clock),
+		.rst(reset),
+    	.arid    (io_master_arid),
+    	.arvalid (io_master_arvalid),
+    	.arready (io_master_arready),
+    	.arlen   (io_master_arlen),
+    	.arburst (io_master_arburst),
+    	.arsize  (io_master_arsize),
+    	.araddr  (io_master_araddr),
+    	.rready  (io_master_rready),
+    	.rlast   (io_master_rlast),
+    	.rvalid  (io_master_rvalid),
+    	.rid     (io_master_rid),
+    	.rresp   (io_master_rresp),
+    	.rdata   (io_master_rdata),
+    	.awvalid (io_master_awvalid),
+    	.awready (io_master_awready),
+    	.awid    (io_master_awid),
+    	.awlen   (io_master_awlen),
+    	.awsize  (io_master_awsize),
+    	.awburst (io_master_awburst),
+    	.awaddr  (io_master_awaddr),
+    	.wvalid  (io_master_wvalid),
+    	.wready  (io_master_wready),
+    	.wlast   (io_master_wlast),
+    	.wstrb   (io_master_wstrb),
+    	.wdata   (io_master_wdata),
+    	.bready  (io_master_bready),
+    	.bvalid  (io_master_bvalid),
+    	.bid     (io_master_bid),
+    	.bresp   (io_master_bresp)
+
+	);
+
+`endif 
 
 endmodule

@@ -48,7 +48,11 @@ static long load_img()
     Log("The image is %s, size = %ld", img_file, size);
 
     fseek(fp, 0, SEEK_SET);
+#ifdef CONFIG_YSYXSOC
+    int ret = fread(guestMrom_to_hostMrom(YSYXSOC_RESET_VECTOR), size, 1, fp);
+#else
     int ret = fread(guest_to_host(RESET_VECTOR), size, 1, fp);
+#endif
     assert(ret == 1);
 
     fclose(fp);

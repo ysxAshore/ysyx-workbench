@@ -32,8 +32,13 @@ __attribute__((noinline)) void invalid_inst(vaddr_t thispc)
 {
 	uint32_t temp[2];
 	vaddr_t pc = thispc;
+#ifdef CONFIG_YSYXSOC
+	mrom_read(pc, (int *)temp);
+	mrom_read(pc + 4, (int *)(temp + 4));
+#else
 	temp[0] = inst_fetch(&pc);
 	temp[1] = inst_fetch(&pc);
+#endif
 
 	uint8_t *p = (uint8_t *)temp;
 	printf("invalid opcode(PC = " FMT_WORD "):\n"

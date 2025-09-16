@@ -58,6 +58,7 @@ endif
 VERILATOR_CFLAGS += -MMD --build -cc --exe --trace\
 				-O3 --x-assign fast --x-initial fast --noassert\
 				--timescale "1ns/1ns" --no-timing\
+				--autoflush\
 				$(VERILATOR_MACRO)\
 				$(VERILATOR_INC_PATH)\
 

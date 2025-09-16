@@ -108,6 +108,11 @@ static void exec_once()
         dut.eval();
 
         DUMP_VCD();
+
+        // --autoflush的使用会降低性能
+        // 为了获得最佳性能 这里在主循环 偶尔调用fflush(stdout)
+        if (sim_time % 500 == 0)
+            fflush(stdout);
     }
 
 #ifdef CONFIG_ITRACE

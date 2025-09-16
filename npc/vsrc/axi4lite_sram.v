@@ -6,31 +6,42 @@ module axi4lite_sram #(
   input rst,
 
   //ar  
+  input [3:0] arid,
   input arvalid,
-  input arid,
-  input [ADDR_WIDTH - 1 : 0] araddr,
   output arready,
+  input [7:0] arlen,
+  input [1:0] arburst,
+  input [2:0] arsize,
+  input [ADDR_WIDTH - 1 : 0] araddr,
 
   //r
   input rready,
-  output reg [1:0] rresp,
+  output reg rlast,
   output reg rvalid,
+  output reg [3:0] rid,
+  output reg [1:0] rresp,
   output reg [DATA_WIDTH - 1 : 0] rdata,
 
   //aw
   input awvalid,
-  input [ADDR_WIDTH - 1 : 0] awaddr,
   output awready,
+  input [3:0] awid,
+  input [7:0] awlen,
+  input [2:0] awsize,
+  input [1:0] awburst,
+  input [ADDR_WIDTH - 1 : 0] awaddr,
 
   //w
   input wvalid,
-  input [DATA_WIDTH - 1 : 0] wstrb,
-  input [DATA_WIDTH - 1 : 0] wdata,
   output wready,
+  input wlast,
+  input [3:0] wstrb,
+  input [DATA_WIDTH - 1 : 0] wdata,
 
   //b
   input bready,
   output reg bvalid,
+  output reg [3:0] bid,
   output reg [1:0] bresp
 );
   	assign arready = 'b1; //总是可以接受读请求
@@ -39,7 +50,7 @@ module axi4lite_sram #(
 	reg [3:0] delay_cnt;
 	reg pending_read;
 
-    reg reg_arid;
+    reg [3:0] reg_arid;
     reg [ADDR_WIDTH - 1 : 0] reg_araddr;
 
 	wire [3:0] rand_delay;
@@ -61,9 +72,11 @@ module axi4lite_sram #(
 		   		pending_read <= 'b1;
 			end else if(pending_read) begin
 				if(delay_cnt == 4'b0) begin
-                    if(arid) rdata <= vaddr_read(reg_araddr, 'h4);
+                    if(arid == 'h1) rdata <= vaddr_read(reg_araddr, 'h4);
                     else rdata <= inst_fetch(reg_araddr);
 
+					rid <= arid;
+					rlast <= 'b1;
       				rvalid <= 'b1;
       				rresp <= 'b0;
 					pending_read <= 'b0;
@@ -77,7 +90,7 @@ module axi4lite_sram #(
 	// 当他们都有效时 就可以发送写请求
 	reg [ADDR_WIDTH - 1 : 0] reg_awaddr;
 	reg [DATA_WIDTH - 1 : 0] reg_wdata;
-	reg [DATA_WIDTH - 1 : 0] reg_wstrb;
+	reg [3:0] reg_wstrb;
 	reg aw_regValid;
 	reg w_regValid;
 
@@ -86,12 +99,16 @@ module axi4lite_sram #(
 	assign awready = ~aw_regValid;
 	assign wready = ~w_regValid;
 
-	wire [DATA_WIDTH - 1 : 0] func_wlen = reg_wstrb == 'h1 ? 'h1 :
-									 reg_wstrb == 'h3 ? 'h2 :
-									 'h4;
-	wire [DATA_WIDTH - 1 : 0] func_wdata = reg_wstrb == 'h1 ? {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[7:0]} :
-									  reg_wstrb == 'h3 ? {{(DATA_WIDTH - 16){1'b0}}, reg_wdata[15:0]} :
-									  reg_wdata[31:0];
+	wire [DATA_WIDTH - 1 : 0] func_wlen = reg_wstrb == 'h3 || reg_wstrb == 'hc ? 'h2 :
+									 	  reg_wstrb == 'hf ? 'h4 :
+									 	  'h1;
+	wire [DATA_WIDTH - 1 : 0] func_wdata = reg_wstrb == 'h3 ? {{(DATA_WIDTH - 16){1'b0}}, reg_wdata[15:0]} :
+									  reg_wstrb == 'hc ? {{(DATA_WIDTH - 16){1'b0}}, reg_wdata[31:16]} :
+									  reg_wstrb == 'hf ? reg_wdata[31:0] :
+									  reg_wstrb == 'h1 ? {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[7:0]} :
+									  reg_wstrb == 'h2 ? {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[15:8]} :
+									  reg_wstrb == 'h4 ? {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[23:16]} :
+									  {{(DATA_WIDTH - 8){1'b0}}, reg_wdata[31:24]};
 
 	import "DPI-C" function void vaddr_write(input bit[ADDR_WIDTH - 1 : 0] waddr,input bit[DATA_WIDTH - 1 : 0] wlen,input bit[DATA_WIDTH - 1 : 0] wdata);
 	always @(posedge clk) begin
@@ -122,6 +139,7 @@ module axi4lite_sram #(
 					vaddr_write(reg_awaddr, func_wlen, func_wdata);
 					bvalid <= 1'b1;
 					bresp <= 2'b0;
+					bid <= 'b0;
 
 					pending_write <= 1'b0;
 				end else delay_cnt <= delay_cnt - 4'b1;
