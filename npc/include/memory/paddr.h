@@ -16,6 +16,10 @@
 
 uint8_t *guestMrom_to_hostMrom(paddr_t paddr);
 paddr_t hostMrom_to_guestMrom(uint8_t *haddr);
+
+#define FLASG_BASE 0x30000000
+#define FLASH_SIZE 0x10000000
+
 #endif
 
 /* convert the guest physical address in the guest program to host virtual address in NEMU */

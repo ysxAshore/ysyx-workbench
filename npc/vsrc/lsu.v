@@ -36,12 +36,17 @@ module lsu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 			mem_valid <= 1'b0;
 	end
 	
+	wire [DATA_WIDTH - 1 : 0] byteReadData = e2m_regData[1:0] == 'h0 ? {{(DATA_WIDTH - 8){m_load_data[7] & m_load_inst == 3'h1}},m_load_data[7:0]} :
+											 e2m_regData[1:0] == 'h1 ? {{(DATA_WIDTH - 8){m_load_data[15] & m_load_inst == 3'h1}},m_load_data[15:8]} :
+											 e2m_regData[1:0] == 'h2 ? {{(DATA_WIDTH - 8){m_load_data[23] & m_load_inst == 3'h1}},m_load_data[23:16]} :
+											 {{(DATA_WIDTH - 8){m_load_data[31] & m_load_inst == 3'h1}},m_load_data[31:24]};
+	wire [DATA_WIDTH - 1 : 0] halfReadData = e2m_regData[1:0] == 'h0 ? {{(DATA_WIDTH - 16){m_load_data[15] & m_load_inst == 3'h2}},m_load_data[15:0]} :
+											 {{(DATA_WIDTH - 16){m_load_data[31] & m_load_inst == 3'h2}},m_load_data[31:16]};
+								
 	wire [DATA_WIDTH - 1 : 0] m_regData = {DATA_WIDTH{m_load_inst == 3'h0}} & e2m_regData |
-					      				  {DATA_WIDTH{m_load_inst == 3'h1}} & {{(DATA_WIDTH - 8){m_load_data[7]}},m_load_data[7:0]} |
-					      				  {DATA_WIDTH{m_load_inst == 3'h2}} & {{(DATA_WIDTH - 16){m_load_data[15]}},m_load_data[15:0]} |
-					      				  {DATA_WIDTH{m_load_inst == 3'h3}} & {{(DATA_WIDTH - 32){m_load_data[31]}},m_load_data[31:0]} |
-					      				  {DATA_WIDTH{m_load_inst == 3'h4}} & {{(DATA_WIDTH - 8){1'b0}},m_load_data[7:0]} |
-					      				  {DATA_WIDTH{m_load_inst == 3'h5}} & {{(DATA_WIDTH - 16){1'b0}},m_load_data[15:0]};
+					      				  {DATA_WIDTH{m_load_inst == 3'h1 | m_load_inst == 3'h4}} &  byteReadData |
+					      				  {DATA_WIDTH{m_load_inst == 3'h2 | m_load_inst == 3'h5}} &  halfReadData |
+					      				  {DATA_WIDTH{m_load_inst == 3'h3}} & {{(DATA_WIDTH - 32){m_load_data[31]}},m_load_data[31:0]};
 
 	assign mem_to_wb_bus = {
 		m_regW,

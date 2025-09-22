@@ -26,6 +26,10 @@ static uint8_t *pmem = NULL;
 static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
+#ifdef CONFIG_YSYXSOC
+void init_flash();
+#endif
+
 uint8_t *guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
 paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
 
@@ -48,6 +52,7 @@ static void out_of_bound(paddr_t addr)
 
 void init_mem()
 {
+  init_flash();
 #if defined(CONFIG_PMEM_MALLOC)
   pmem = malloc(CONFIG_MSIZE);
   assert(pmem);
@@ -86,8 +91,20 @@ uint8_t *guestMrom_to_hostMrom(paddr_t paddr) { return mrom + paddr - MROM_BASE;
 paddr_t hostMrom_to_guestMrom(uint8_t *haddr) { return haddr - mrom + MROM_BASE; }
 extern "C" void mrom_read(int32_t addr, int32_t *data)
 {
-  *data = host_read(guestMrom_to_hostMrom(addr), 4);
+  *data = host_read(guestMrom_to_hostMrom(addr & ~0x3), 4);
 }
 
-extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
+static uint8_t flash[FLASH_SIZE] PG_ALIGN = {};
+extern "C" void flash_read(int32_t addr, int32_t *data)
+{
+  // addr是4字节对齐的,低2位为0 这里地址已经做差了
+  // 因此需要强转数组类型
+  *data = *(int32_t *)((uintptr_t)flash + addr);
+}
+
+void init_flash()
+{
+  for (int i = 0; i < 100000; ++i)
+    flash[i] = i;
+}
 #endif
