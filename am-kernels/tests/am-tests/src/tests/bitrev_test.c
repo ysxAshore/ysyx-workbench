@@ -22,7 +22,7 @@ int main(const char *args) {
 	// CHAR_LEN = 10
 	// GO_BSY = 1
 	// Rx_NEG:0 上升沿锁存miso
-	// Tx_NEG:1 上降沿发送mosi
+	// Tx_NEG:0 上升沿发送mosi
 	// LSB=1
 	// IE=0
 	// ASS=1
