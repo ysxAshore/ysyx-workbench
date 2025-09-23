@@ -104,7 +104,24 @@ extern "C" void flash_read(int32_t addr, int32_t *data)
 
 void init_flash()
 {
-  for (int i = 0; i < 100000; ++i)
-    flash[i] = i;
+  /* 随机数值测试
+      for (int i = 0; i < 100000; ++i)
+        flash[i] = i;
+  */
+
+  /* 存储char-test程序 将其读入SRAM 跳转并执行 注意这里的相对路径是相对于npc下的 因为在npc下执行make*/
+  FILE *fp = fopen("../ysyxSoC/perip/uart16550/test/test.bin", "rb");
+  Assert(fp, "Can not open '../ysyxSoC/perip/uart16550/test/test.bin'");
+
+  fseek(fp, 0, SEEK_END);
+  long size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  // 让软件知道要拷贝多少字节
+  *(uint32_t *)flash = size;
+  int ret = fread(flash + 0x4, size, 1, fp);
+  assert(ret == 1);
+
+  fclose(fp);
 }
 #endif
