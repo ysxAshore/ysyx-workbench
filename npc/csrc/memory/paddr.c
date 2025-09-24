@@ -117,9 +117,13 @@ void init_flash()
   long size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
+  /* XIP方式就不需要拷贝程序 也就不需要知道程序的大小了
   // 让软件知道要拷贝多少字节
   *(uint32_t *)flash = size;
   int ret = fread(flash + 0x4, size, 1, fp);
+  */
+
+  int ret = fread(flash, size, 1, fp);
   assert(ret == 1);
 
   fclose(fp);

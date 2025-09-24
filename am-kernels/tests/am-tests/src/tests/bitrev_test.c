@@ -32,8 +32,14 @@ int main(const char *args) {
 	while(*(volatile uint32_t *)SPI_REG_CTRL & 0x1 << 8);
 
 	// 6. 读出数据Rx
+	//*(volatile uint32_t *)SPI_REG_TX = 0;
+	//*(volatile uint32_t *)SPI_REG_CTRL = 0x8 | 0x1 << 8 | 0x1 << 11;
+	//while(*(volatile uint32_t *)SPI_REG_CTRL & 0x1 << 8);
+	//uint8_t rx_data = *(volatile uint32_t *)SPI_REG_RX;
+	//*(volatile uint32_t *)SPI_REG_SS = 0 << 7;
 	uint16_t rx_data = *(volatile uint32_t *)SPI_REG_RX;
 
+    //panic_on(0xea != rx_data, "error");
     panic_on(0xea != (rx_data >> 8), "error");
 
 	return 0;

@@ -117,7 +117,7 @@ void flash_test()
 }
 */
 
-/* 从flash中加载程序并执行 */
+/* 从flash中加载程序并执行 通过flash_read软件函数
 void (*entry)(void);
 void flash_test()
 {
@@ -136,6 +136,38 @@ void flash_test()
         ++read_addr;
     }
     entry = (void (*)(void))func;
+    entry();
+}
+*/
+
+/* 从flash中加载程序并执行 通过硬件直接读取
+void flash_test()
+{
+    uintptr_t read_addr = 0x30000000;
+    uint32_t size = *(uint32_t *)read_addr;
+    uint8_t func[size];
+    read_addr += 0x4;
+    for (int i = 0; i < size; ++i)
+    {
+
+        uint32_t data = *(uint32_t *)read_addr;
+        uint8_t this_data = (read_addr & 0x3) == 0x0 ? data : (read_addr & 0x3) == 0x1 ? data >> 8
+                                                          : (read_addr & 0x3) == 0x2   ? data >> 16
+                                                                                       : data >> 24;
+        func[i] = this_data;
+        ++read_addr;
+    }
+    void (*entry)(void);
+    entry = (void (*)(void))func;
+    entry();
+}
+*/
+
+/* XIP方式跳转到flash 执行程序*/
+void flash_test(){
+    uintptr_t flash_addr = 0x30000000;
+    void (*entry)(void);
+    entry = (void (*)(void))flash_addr;
     entry();
 }
 
