@@ -93,7 +93,15 @@ module npc_top(
 
 	always @(posedge clock) begin
 		if(reset) begin
-			pc <= 'h8000_0000;
+      		`ifdef YSYXSOC
+      		  `ifdef USE_MROM
+      		  pc <= 32'h2000_0000;
+      		  `elsif USE_FLASH
+      		  pc <= 32'h3000_0000;
+      		  `endif
+      		`else 
+      		  pc <= 32'h8000_0000;
+      		`endif
 		end else begin
 			if(if_to_id_valid && id_to_if_ready) begin
 				pc <= if_to_id_bus[DATA_WIDTH + ADDR_WIDTH - 1 : DATA_WIDTH];

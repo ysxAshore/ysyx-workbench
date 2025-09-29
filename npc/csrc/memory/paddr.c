@@ -52,7 +52,11 @@ static void out_of_bound(paddr_t addr)
 
 void init_mem()
 {
+  // 使用FLASH存储程序时 就不需要这样了
+#ifdef CONFIG_USE_MROM
   init_flash();
+#endif
+
 #if defined(CONFIG_PMEM_MALLOC)
   pmem = malloc(CONFIG_MSIZE);
   assert(pmem);
@@ -87,11 +91,9 @@ void paddr_write(paddr_t addr, int len, word_t data)
 
 static uint8_t mrom[MROM_SIZE] PG_ALIGN = {};
 
-uint8_t *guestMrom_to_hostMrom(paddr_t paddr) { return mrom + paddr - MROM_BASE; }
-paddr_t hostMrom_to_guestMrom(uint8_t *haddr) { return haddr - mrom + MROM_BASE; }
 extern "C" void mrom_read(int32_t addr, int32_t *data)
 {
-  *data = host_read(guestMrom_to_hostMrom(addr & ~0x3), 4);
+  *data = *(int32_t *)((uintptr_t)mrom + addr - MROM_BASE);
 }
 
 static uint8_t flash[FLASH_SIZE] PG_ALIGN = {};
@@ -128,4 +130,38 @@ void init_flash()
 
   fclose(fp);
 }
+
+uint8_t *guestAddr_to_hostAddr(paddr_t paddr)
+{
+#ifdef CONFIG_USE_MROM
+  return mrom + paddr - MROM_BASE;
+#endif
+
+#ifdef CONFIG_USE_FLASH
+  return flash + paddr - FLASH_BASE;
+#endif
+}
+paddr_t hostAddr_to_guestAddr(uint8_t *haddr)
+{
+#ifdef CONFIG_USE_MROM
+  return haddr - mrom + MROM_BASE;
+#endif
+
+#ifdef CONFIG_USE_FLASH
+  return haddr - flash + FLASH_BASE;
+#endif
+}
+
+extern "C" void time_read(int32_t addr, int32_t *data)
+{
+  static uint64_t us;
+  if ((addr & 0xf) == 0xc)
+  {
+    us = get_time();
+    *data = (uint32_t)(us >> 32);
+  }
+  else
+    *data = (uint32_t)us;
+}
+
 #endif

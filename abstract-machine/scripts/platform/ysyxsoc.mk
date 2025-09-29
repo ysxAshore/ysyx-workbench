@@ -11,7 +11,7 @@ AM_SRCS := riscv/ysyxsoc/start.S \
 CFLAGS    += -I$(AM_HOME)/am/src/riscv/ysyxsoc/include
 CFLAGS    += -fdata-sections -ffunction-sections
 LDSCRIPTS += $(AM_HOME)/scripts/ysyxsoc_linker.ld
-LDFLAGS   += --defsym=_mrom_start=0x20000000 \
+LDFLAGS   += --defsym=_flash_start=0x30000000 \
 			 --defsym=_sram_start=0x0f000000 
 LDFLAGS   += --gc-sections -e _start
 

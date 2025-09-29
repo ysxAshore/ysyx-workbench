@@ -36,6 +36,14 @@ VERILATOR_INC_PATH = $(addprefix -y ,$(VERILATOR_INC))
 
 VERILATOR_MACRO += -DYSYXSOC=1
 
+ifneq ($(CONFIG_USE_MROM),)
+VERILATOR_MACRO += -DUSE_MROM=1
+endif
+
+ifneq ($(CONFIG_USE_FLASH),)
+VERILATOR_MACRO += -DUSE_FLASH=1
+endif
+
 endif
 
 # Extract compiler and options from menuconfig

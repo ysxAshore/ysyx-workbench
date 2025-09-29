@@ -21,19 +21,19 @@ int main(const char *args) {
  //   CASE('i', hello_intr, IOE, CTE(simple_trap));
  //   CASE('d', devscan, IOE);
  //   CASE('m', mp_print, MPE);
- //   CASE('t', rtc_test, IOE);
+    CASE('t', rtc_test, IOE);
  //   CASE('k', keyboard_test, IOE);
  //   CASE('v', video_test, IOE);
  //   CASE('a', audio_test, IOE);
  //   CASE('p', vm_test, CTE(vm_handler), VME(simple_pgalloc, simple_pgfree));
-    case 'H':
+ //   case 'H':
     default:
-      //printf("Usage: make run mainargs=*\n");
-   //   for (int ch = 0; ch < 256; ch++) {
-   //     if (tests[ch]) {
-   //       printf("  %c: %s\n", ch, tests[ch]);
-   //     }
-   //   }
+		printf("Usage: make run mainargs=*\n");
+	  //  for (int ch = 0; ch < 256; ch++) {
+   	  //    if (tests[ch]) {
+   	  //      printf("  %c: %s\n", ch, tests[ch]);
+   	  //    }
+   	  //  }
   }
   return 0;
 }

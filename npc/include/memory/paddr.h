@@ -9,16 +9,21 @@
 
 #ifdef CONFIG_YSYXSOC
 
+#ifdef CONFIG_USE_MROM
 #define YSYXSOC_RESET_VECTOR 0x20000000
+#else
+#ifdef CONFIG_USE_FLASH
+#define YSYXSOC_RESET_VECTOR 0x30000000
+#endif
+#endif
 
 #define MROM_BASE 0x20000000
 #define MROM_SIZE 0x1000
-
-uint8_t *guestMrom_to_hostMrom(paddr_t paddr);
-paddr_t hostMrom_to_guestMrom(uint8_t *haddr);
-
-#define FLASG_BASE 0x30000000
+#define FLASH_BASE 0x30000000
 #define FLASH_SIZE 0x10000000
+
+uint8_t *guestAddr_to_hostAddr(paddr_t paddr);
+paddr_t hostAddr_to_guestAddr(uint8_t *haddr);
 
 #endif
 

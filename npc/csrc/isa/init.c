@@ -2,8 +2,8 @@
 #include <memory/paddr.h>
 
 TOP_NAME dut;
-int clk_period = 20;        // 时钟周期 10个仿真时间单位
-static int reset_time = 33; // 复位时间
+int clk_period = 10;        // 时钟周期 10个仿真时间单位
+static int reset_time = 17; // 复位时间
 vluint64_t sim_time = 0;
 #ifdef CONFIG_VCD
 VerilatedVcdC *tfp;
@@ -57,7 +57,7 @@ void init_isa()
 {
 /* Load built-in image. */
 #ifdef CONFIG_YSYXSOC
-    memcpy(guestMrom_to_hostMrom(YSYXSOC_RESET_VECTOR), img, sizeof(img));
+    memcpy(guestAddr_to_hostAddr(YSYXSOC_RESET_VECTOR), img, sizeof(img));
 #else
     memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
 #endif

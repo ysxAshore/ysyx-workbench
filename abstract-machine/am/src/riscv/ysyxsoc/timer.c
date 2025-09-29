@@ -1,19 +1,25 @@
 #include <am.h>
 #include <ysyxsoc.h>
 
+void __am_timer_config(AM_TIMER_CONFIG_T *cfg)
+{
+  cfg->present = true;
+  cfg->has_rtc = true;
+}
+
 static uint64_t start;
 void __am_timer_init()
 {
-  uint32_t high = inl(RTC_ADDR + 0x4);
-  uint32_t low = inl(RTC_ADDR);
-  start = ((uint64_t)high << 32) + low;
+  uint32_t high = inl(TIME_UPTIME_ADDR + 0x4);
+  uint32_t low = inl(TIME_UPTIME_ADDR);
+  start = (((uint64_t)high << 32) + low) * 255 / 100;
 }
 
 void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime)
 {
-  uint32_t high = inl(RTC_ADDR + 0x4);
-  uint32_t low = inl(RTC_ADDR);
-  uptime->us = ((uint64_t)high << 32) + low - start;
+  uint32_t high = inl(TIME_UPTIME_ADDR + 0x4);
+  uint32_t low = inl(TIME_UPTIME_ADDR);
+  uptime->us = (((uint64_t)high << 32) + low) * 255 / 100 - start;
 }
 
 // 1970年之后每年天数（闰年为366天）
@@ -68,8 +74,8 @@ void my_localtime(long long seconds, AM_TIMER_RTC_T *tm)
 
 void __am_timer_rtc(AM_TIMER_RTC_T *rtc)
 {
-  uint32_t high = inl(RTC_ADDR + 0x4);
-  uint32_t low = inl(RTC_ADDR);
-  uint64_t us = ((uint64_t)high << 32) + low;
+  uint32_t high = inl(TIME_RTC_ADDR + 0x4);
+  uint32_t low = inl(TIME_RTC_ADDR);
+  uint64_t us = (((uint64_t)high << 32) + low);
   my_localtime(us / 1000000, rtc);
 }

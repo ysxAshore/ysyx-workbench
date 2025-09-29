@@ -28,8 +28,6 @@ void invalid_inst(vaddr_t thispc);
 #define INV(thispc) invalid_inst(thispc)
 #define DUMP_VCD() IFDEF(CONFIG_VCD, do {\
     extern VerilatedVcdC *tfp;\
-    if (Verilated::time() >= CONFIG_VCD_START &&\
-        Verilated::time() <= CONFIG_VCD_END)\
         tfp->dump(Verilated::time()); } while (0))
 
 #endif

@@ -32,6 +32,7 @@ config RVE
 endmenu
 endif
 
+menu "NPC Excution Config"
 choice 
   prompt "NPC execution environment"
   default BARE_METAL
@@ -41,8 +42,20 @@ config BARE_METAL
 
 config YSYXSOC
   bool "ysyxSoC environment"
-
 endchoice
+
+choice 
+  prompt "NPC Program Storage"
+  default USE_MROM
+  depends on YSYXSOC
+
+config USE_MROM
+  bool "using mrom as the program storage"
+
+config USE_FLASH
+  bool "using flash as the program storage"
+endchoice
+endmenu
 
 choice
   prompt "NPC execution engine"

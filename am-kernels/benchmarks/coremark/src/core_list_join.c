@@ -163,6 +163,7 @@ ee_u16 core_bench_list(core_results *res, ee_s16 finder_idx) {
 		}
 		if (info.idx>=0)
 			info.idx++;
+	ee_printf("List find %d: [%d,%d,%d]\n",i,retval,missed,found);
 #if CORE_DEBUG
 	ee_printf("List find %d: [%d,%d,%d]\n",i,retval,missed,found);
 #endif
@@ -180,6 +181,7 @@ ee_u16 core_bench_list(core_results *res, ee_s16 finder_idx) {
 		retval=crc16(list->info->data16,retval);
 		finder=finder->next;
 	}
+	ee_printf("List sort 1: %04x\n",retval);
 #if CORE_DEBUG
 	ee_printf("List sort 1: %04x\n",retval);
 #endif
@@ -195,6 +197,7 @@ ee_u16 core_bench_list(core_results *res, ee_s16 finder_idx) {
 #if CORE_DEBUG
 	ee_printf("List sort 2: %04x\n",retval);
 #endif
+	ee_printf("List sort 2: %04x\n",retval);
 	return retval;
 }
 /* Function: core_list_init

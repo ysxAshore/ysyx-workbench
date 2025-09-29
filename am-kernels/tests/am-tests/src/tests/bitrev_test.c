@@ -6,7 +6,7 @@
 #define SPI_REG_DIV (SPI_BASE + 0x14)
 #define SPI_REG_SS (SPI_BASE + 0x18)
 
-int main(const char *args) {
+void bitrev_test(){
 	int32_t a = 0x57;
 	
 	// 1. 设置TX发送数据
@@ -41,6 +41,4 @@ int main(const char *args) {
 
     //panic_on(0xea != rx_data, "error");
     panic_on(0xea != (rx_data >> 8), "error");
-
-	return 0;
 }

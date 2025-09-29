@@ -21,6 +21,7 @@ typedef struct
 // ----------- timer -----------
 
 uint64_t get_time();
+#define TIMER_HZ 60
 
 // ----------- log -----------
 

@@ -170,8 +170,3 @@ void flash_test(){
     entry = (void (*)(void))flash_addr;
     entry();
 }
-
-int main()
-{
-    flash_test();
-}

@@ -46,9 +46,13 @@ void *iterate(void *pres) {
 	res->crcstate=0;
 
 	for (i=0; i<iterations; i++) {
+		ee_printf("%d,%d\n",i, iterations);
 		crc=core_bench_list(res,1);
+		ee_printf("51\n");
 		res->crc=crcu16(crc,res->crc);
+		ee_printf("53\n");
 		crc=core_bench_list(res,-1);
+		ee_printf("55\n");
 		res->crc=crcu16(crc,res->crc);
 		if (i==0) res->crclist=res->crc;
 	}
@@ -217,6 +221,7 @@ MAIN_RETURN_TYPE main(int argc, char *argv[]) {
 		results[0].iterations*=1+10/divisor;
 	}
 	/* perform actual benchmark */
+	ee_printf("222\n");
 	start_time();
 #if (MULTITHREAD>1)
 	if (default_num_contexts>MULTITHREAD) {
@@ -231,8 +236,10 @@ MAIN_RETURN_TYPE main(int argc, char *argv[]) {
 		core_stop_parallel(&results[i]);
 	}
 #else
+	ee_printf("235\n");
 	iterate(&results[0]);
 #endif
+	ee_printf("239\n");
 	stop_time();
 	total_time=get_time();
 	/* get a function of the input to report */

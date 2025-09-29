@@ -66,7 +66,11 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
     if (rst) begin
       arvalid <= 1'b0;
       `ifdef YSYXSOC
-      fetch_pc <= 32'h2000_0000;
+        `ifdef USE_MROM
+        fetch_pc <= 32'h2000_0000;
+        `elsif USE_FLASH
+        fetch_pc <= 32'h3000_0000;
+        `endif
       `else 
       fetch_pc <= 32'h8000_0000;
       `endif
