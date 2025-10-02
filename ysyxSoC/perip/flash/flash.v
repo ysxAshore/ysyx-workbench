@@ -11,8 +11,8 @@ module flash (
 );
   wire reset = ss;
 
-  typedef enum [2:0] { cmd_t, addr_t, data_t, err_t } state_t; // 主状态机 4状态
-  reg [2:0]  state;											   // 状态机变量
+  typedef enum [1:0] { cmd_t, addr_t, data_t, err_t } state_t; // 主状态机 4状态
+  reg [1:0]  state;											   // 状态机变量
   reg [7:0]  counter;										   // 计数器 记录目前接受了几个mosi
   reg [7:0]  cmd;                                              // 记录mosi传递的命令
   reg [23:0] addr;											   // 记录mosi传递的地址

@@ -19,9 +19,9 @@ module psram(
 
   // 实例化psram_cmd 通过DPI-C 实现psram的读or写 
   wire ren = (state == wait_t) && (counter == 'd5); // 会有一个6cycle的读延迟
-  wire wen = (state == wdata_t) && (counter == 'h2 || counter == 'h4 || counter == 'h8); //假如是一个写2B 或者写4B 这里提前发出一次写小的 并不会有问题
-  wire [3:0] wsize = counter == 'h2 ? 'h1 :
-                     counter == 'h4 ? 'h2 : 'h4;
+  wire wen = (state == wdata_t) && (counter == 'h1 || counter == 'h3 || counter == 'h7); //假如是一个写2B 或者写4B 这里提前发出一次写小的 并不会有问题
+  wire [3:0] wsize = counter == 'h1 ? 'h1 :
+                     counter == 'h3 ? 'h2 : 'h4;
   wire [31:0] addr_wire = {8'b0, addr[23:0]};
   wire [31:0] rdata;
 
@@ -57,29 +57,35 @@ module psram(
     end
   end
 
+  reg update;
   always @(posedge sck or posedge reset) begin
     if(reset) begin 
       counter <= 'h0; 
+      update <= 'b0;
     end else begin
+      if(~update) update <= 'b1;
+      else if(update) begin
         case (state)
           cmd_t: counter <= (counter < 'd7) ? counter + 'd1 : 'd0;
           addr_t: counter <= (counter < 'd5) ? counter + 'd1 : 'd0;
           wait_t: counter <= (counter < 'd5) ? counter + 'd1 : 'd0;
           default: counter <= counter + 'd1;  
         endcase
+      end
     end
   end
 
   // 上升沿采样command 先发送的是MSB
   always @(posedge sck or posedge reset) begin
     if(reset) cmd <= 'h0;
-    else if(state == cmd_t) cmd <= {cmd[6:0], din[0]};
+    else if(state == cmd_t && counter < 'd7) cmd <= {cmd[6:0], din[0]};
   end
 
   // 上升沿采样command 先发送的是MSB
   always @(posedge sck or posedge reset) begin
     if(reset) addr <= 'd0;
-    else if (state == addr_t) addr <= {addr[19:0], din};
+    else if (state == cmd_t  && counter == 'd7) addr <= {addr[19:0], din};
+    else if (state == addr_t && counter < 'd5) addr <= {addr[19:0], din};
   end
 
   // 0 1 2 3 4 5 6 7 
@@ -89,6 +95,8 @@ module psram(
   wire[1:0] byte_index = counter[2:1];
   always @(posedge sck or posedge reset) begin
     if(reset) for(i = 0; i < 4; i = i + 1) recv_data[i] <= 'd0;
+    else if(state == addr_t && counter == 'd5)
+        recv_data[0] <= {recv_data[0][3:0], din};
     else if(state == wdata_t) 
         recv_data[byte_index] <= {recv_data[byte_index][3:0], din};
   end
@@ -106,10 +114,10 @@ module psram(
   wire [31:0] data_bitswap = {rdata[27:24], rdata[31:28], rdata[19:16], rdata[23:20], rdata[11:8],rdata[15:12],rdata[3:0], rdata[7:4]};
   always @(posedge sck or posedge reset) begin
     if(reset) send_data <= 'h0;
-    else if(state == rdata_t && counter >= 'd1) send_data <= {4'b0, {counter == 8'd1 ? data_bitswap : send_data}[31:4]};
+    else if(state == rdata_t) send_data <= {4'b0, {counter == 8'd0 ? data_bitswap : send_data}[31:4]};
   end
 
-  assign dio = (state == rdata_t && counter >= 'd1) ? ({(counter == 8'd1) ? data_bitswap : send_data}[3:0]) : 4'hz;
+  assign dio = (state == rdata_t) ? ({(counter == 8'd0) ? data_bitswap : send_data}[3:0]) : 4'hz;
 
 endmodule
 

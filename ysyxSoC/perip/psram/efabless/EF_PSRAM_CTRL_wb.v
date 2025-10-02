@@ -19,7 +19,7 @@
 
 // Using EBH Command
 module EF_PSRAM_CTRL_wb (
-    // WB bus Interface
+    // WB bus Interface-wishbone
     input   wire        clk_i,
     input   wire        rst_i,
     input   wire [31:0] adr_i,
@@ -42,33 +42,33 @@ module EF_PSRAM_CTRL_wb (
     localparam  ST_IDLE = 1'b0,
                 ST_WAIT = 1'b1;
 
+    //传递给CTRL_R 的接口 得到读对应的SPI接口
     wire        mr_sck;
     wire        mr_ce_n;
     wire [3:0]  mr_din;
     wire [3:0]  mr_dout;
     wire        mr_doe;
 
+    //传递给CTRL_W 的接口 得到写对应的SPI接口
     wire        mw_sck;
     wire        mw_ce_n;
     wire [3:0]  mw_din;
     wire [3:0]  mw_dout;
     wire        mw_doe;
 
-    // PSRAM Reader and Writer wires
-    wire        mr_rd;
-    wire        mr_done;
-    wire        mw_wr;
-    wire        mw_done;
-
-    //wire        doe;
+    // 发出请求 以及 响应
+    wire        mr_rd; //发出的是读操作 且 总线操作有效
+    wire        mr_done; //读操作 CTRL_R响应完成
+    wire        mw_wr; //发出的是写操作 且 总线操作有效
+    wire        mw_done; //写操作 CTRL_W响应完成
 
     // WB Control Signals
+    // wishbone中一次有效的总线操作时 cyc和stb都需要持续有效
     wire        wb_valid        =   cyc_i & stb_i;
     wire        wb_we           =   we_i & wb_valid;
     wire        wb_re           =   ~we_i & wb_valid;
-    //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
 
-    // The FSM
+    // 更新状态机逻辑
     reg         state, nstate;
     always @ (posedge clk_i or posedge rst_i)
         if(rst_i)
@@ -76,22 +76,24 @@ module EF_PSRAM_CTRL_wb (
         else
             state <= nstate;
 
+    // 设置nstate
     always @* begin
         case(state)
             ST_IDLE :
-                if(wb_valid)
+                if(wb_valid) // 存在有效总线操作时 进入WAIT状态
                     nstate = ST_WAIT;
                 else
                     nstate = ST_IDLE;
 
             ST_WAIT :
-                if((mw_done & wb_we) | (mr_done & wb_re))
+                if((mw_done & wb_we) | (mr_done & wb_re)) //当对应的操作完成时 进入IDLE
                     nstate = ST_IDLE;
                 else
                     nstate = ST_WAIT;
         endcase
     end
 
+    // 根据sel-也就是AXI APB里的strb 得到访问字节数
     wire [2:0]  size =  (sel_i == 4'b0001) ? 1 :
                         (sel_i == 4'b0010) ? 1 :
                         (sel_i == 4'b0100) ? 1 :
@@ -100,36 +102,38 @@ module EF_PSRAM_CTRL_wb (
                         (sel_i == 4'b1100) ? 2 :
                         (sel_i == 4'b1111) ? 4 : 4;
 
-
-
+    // 根据sel和size 重新组合dat 得到wdata
+    /*
+    0001 [7:0]
+    0010 [15:8]
+    0011 [15:0]
+    0100 [23:16]
+    1000 [31:24]
+    1100 [31:16]
+    1111 [31:0]
+    因此 对于wdata[7:0] sel[0]有效选择[7:0]、sel[1]有效且size=1选[15:8] sel[2]=1且size!=4选[23:16] sel[3]有效且size=1选[31:24]
+            wdata[15:8] sel[1]有效 选[15:8] 否则选[31:24]
+            wdata[23:16] wdata[31:24] 就是只有size=4的情况 sel=4'hf 因此就是dat的对应位
+    */
     wire [7:0]  byte0 = (sel_i[0])          ? dat_i[7:0]   :
                         (sel_i[1] & size==1)? dat_i[15:8]  :
                         (sel_i[2] & size==1)? dat_i[23:16] :
                         (sel_i[3] & size==1)? dat_i[31:24] :
                         (sel_i[2] & size==2)? dat_i[23:16] :
                         dat_i[7:0];
-
     wire [7:0]  byte1 = (sel_i[1])          ? dat_i[15:8]  :
                         dat_i[31:24];
-
     wire [7:0]  byte2 = dat_i[23:16];
-
     wire [7:0]  byte3 = dat_i[31:24];
-
     wire [31:0] wdata = {byte3, byte2, byte1, byte0};
 
-    /*
-    wire [1:0]  waddr = (size==1 && sel_i[0]==1) ? 2'b00 :
-                        (size==1 && sel_i[1]==1) ? 2'b01 :
-                        (size==1 && sel_i[2]==1) ? 2'b10 :
-                        (size==1 && sel_i[3]==1) ? 2'b11 :
-                        (size==2 && sel_i[2]==1) ? 2'b10 :
-                        2'b00;
-                      */
-
+    // 发出请求 在IDLE时发出请求 之后就进入了WAIT
     assign mr_rd    = ( (state==ST_IDLE ) & wb_re );
     assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
 
+    //控制器模块 得到读写对应的SPI 输出
+    //  读使用4B对齐
+    //  写使用1B对齐
     PSRAM_READER MR (
         .clk(clk_i),
         .rst_n(~rst_i),
@@ -161,6 +165,7 @@ module EF_PSRAM_CTRL_wb (
         .douten(mw_doe)
     );
 
+    // 根据读写请求有效与否wb_we或者wb_re 得到 最后输出是输出哪个控制器的
     assign sck  = wb_we ? mw_sck  : mr_sck;
     assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
     assign dout = wb_we ? mw_dout : mr_dout;

@@ -41,6 +41,7 @@
 `timescale              1ns/1ps
 `default_nettype        none
 
+//USING EBH Command
 module PSRAM_READER (
     input   wire            clk,
     input   wire            rst_n,
@@ -57,9 +58,12 @@ module PSRAM_READER (
     output  wire            douten
 );
 
+    // 两种状态
     localparam  IDLE = 1'b0,
                 READ = 1'b1;
 
+    // READ 使用1-4-4 8cycle:cmd 24/2cycle:addr size:width/8->size width/4->cycle size*2cycle
+    // 而因为 READ 时 size 总是4 -> 需要 19 + 4 * 2 = 27cycle
     wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
 
     reg         state, nstate;
@@ -79,7 +83,8 @@ module PSRAM_READER (
         if(!rst_n) state <= IDLE;
         else state <= nstate;
 
-    // Drive the Serial Clock (sck) @ clk/2
+    // 在clk的每次上升沿周期时 变化sck 也就是将clk二分频作为sck
+    // sck只有在ce_n有效时才会 升降处理
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
             sck <= 1'b0;
@@ -88,7 +93,9 @@ module PSRAM_READER (
         else if(state == IDLE)
             sck <= 1'b0;
 
-    // ce_n logic
+    // ce_n低电平有效 用于使能对应设备
+    // 当主状态机进入到 READ 状态时会 使能ce_n， 即存在有效请求时使能设备
+    // ce_n有效以后的下一个时钟周期 会开始变化sck
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
             ce_n <= 1'b1;
@@ -97,6 +104,8 @@ module PSRAM_READER (
         else
             ce_n <= 1'b1;
 
+    // 计数 用于记录经过了多少个SCK sck下降沿计数
+    // 为什么是下降沿 因为在ce_n有效时clk的上升沿会变化sck
     always @ (posedge clk or negedge rst_n)
         if(!rst_n)
             counter <= 8'b0;
@@ -113,12 +122,21 @@ module PSRAM_READER (
             saddr <= {addr[23:0]};
 
     // Sample with the negedge of sck
+    // sck上升沿发送 下降沿采样
+    // 开始接收时counter就是 8'b00010100 ~ 8'b00011011
+    //         那么counter[7:1]就是8'd10 8'd10 8'd11 8'd11 8'd12 8'd12 8'd13 8'd13
+    // 每次存data[0]的8bit data[1]的8bit ...
+    // 也就是说接收8个sck 从低字节接收 每次先接收字节内的高4bit
     wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
     always @ (posedge clk)
+        //20~27是传递数据
+        //din从低位接收 因为接受到的是msb
         if(counter >= 20 && counter <= FINAL_COUNT)
             if(sck)
                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
 
+    // counter < 8: 发送命令 命令是按照1bit发送的 先发送MSB
+    // counter 8~13: 发送地址 地址是按照4bit发送的 也是发送MSB
     assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
                         (counter == 8)  ?   saddr[23:20]        :
                         (counter == 9)  ?   saddr[19:16]        :
@@ -128,16 +146,21 @@ module PSRAM_READER (
                         (counter == 13) ?   saddr[3:0]          :
                         4'h0;
 
+    // counter<14时 是向psram发送 cmd 和 addr
     assign douten   = (counter < 14);
 
+    // counter == 28时 说明数据全接收到了
     assign done     = (counter == FINAL_COUNT+1);
 
+    //line[7:0] - data[0]
+    //line[15:8] - data[1]
+    //line[23:16] - data[2]
+    //line[31:24] - data[3]
     generate
         genvar i;
         for(i=0; i<4; i=i+1)
             assign line[i*8+7: i*8] = data[i];
     endgenerate
-
 
 endmodule
 
@@ -161,12 +184,12 @@ module PSRAM_WRITER (
     localparam  IDLE = 1'b0,
                 WRITE = 1'b1;
 
+    // 和READER一样 只不过size确实是根据 1 2 4有不同的数值 且没有延迟
     wire[7:0]        FINAL_COUNT = 13 + size*2;
 
     reg         state, nstate;
     reg [7:0]   counter;
     reg [23:0]  saddr;
-    //reg [7:0]   data [3:0];
 
     wire[7:0]   CMD_38H = 8'h38;
 
@@ -212,6 +235,8 @@ module PSRAM_WRITER (
         else if((state == IDLE) && wr)
             saddr <= addr;
 
+    // MSB 发送 command和addr
+    // LSB 发送 数据line 且 每次先发送字节的高4bit
     assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
                         (counter == 8)  ?   saddr[23:20]        :
                         (counter == 9)  ?   saddr[19:16]        :
@@ -231,6 +256,5 @@ module PSRAM_WRITER (
     assign douten   = (~ce_n);
 
     assign done     = (counter == FINAL_COUNT + 1);
-
 
 endmodule

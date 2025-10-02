@@ -1,4 +1,5 @@
 module psram_top_apb (
+  //APB接口
   input         clock,
   input         reset,
   input  [31:0] in_paddr,
@@ -12,14 +13,19 @@ module psram_top_apb (
   output [31:0] in_prdata,
   output        in_pslverr,
 
+  //QSPI接口
   output qspi_sck,
   output qspi_ce_n,
+  //双向端口
+  //在输入时 输出是高阻态
+  //在输出时 输入是高阻态
   inout  [3:0] qspi_dio
 );
 
   wire [3:0] din, dout, douten;
   wire ack;
   EF_PSRAM_CTRL_wb u0 (
+    //wishbone接口
     .clk_i(clock),
     .rst_i(reset),
     .adr_i(in_paddr),

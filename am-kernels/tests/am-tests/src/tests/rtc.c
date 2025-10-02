@@ -19,9 +19,3 @@ void rtc_test()
     }
   }
 }
-
-int main()
-{
-  rtc_test();
-  return 0;
-}

@@ -131,6 +131,26 @@ void init_flash()
   fclose(fp);
 }
 
+static uint8_t psram[PSRAM_SIZE] PG_ALIGN = {};
+extern "C" void psram_read(int32_t addr, int32_t *data)
+{
+  // addr是4字节对齐的,低2位为0 这里地址已经做差了
+  // 因此需要强转数组类型
+  *data = *(int32_t *)((uintptr_t)psram + addr);
+  printf("read %x addr %x data\n", addr, *data);
+}
+
+extern "C" void psram_write(int32_t addr, int32_t data, int32_t wsize)
+{
+  printf("write %x addr %x data %x wsized\n", addr, data, wsize);
+  if (wsize == 1)
+    psram[addr] = (uint8_t)data;
+  else if (wsize == 2)
+    *(uint16_t *)(psram + addr) = (uint16_t)data;
+  else
+    *(uint32_t *)(psram + addr) = (uint32_t)data;
+}
+
 uint8_t *guestAddr_to_hostAddr(paddr_t paddr)
 {
 #ifdef CONFIG_USE_MROM
