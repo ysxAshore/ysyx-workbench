@@ -41,10 +41,87 @@
 `timescale              1ns/1ps
 `default_nettype        none
 
+module PSRAM_RESET_CMD (
+    input   wire            clk,
+    input   wire            rst_n,
+    input   wire            valid,
+    output  wire            done,
+
+    output  reg             sck,
+    output  reg             ce_n,
+    output  wire [3:0]      dout,
+    output  wire            douten
+);
+    // 两种状态
+    localparam  IDLE = 1'b0,
+                SEND_CMD = 1'b1;
+
+    wire [7:0]  FINAL_COUNT = 7; //只需要发送8bit command
+
+    reg         state;
+    reg [7:0]   counter;
+
+    wire[7:0]   CMD_01H = 8'h01; //当PSRAM收到该命令时 表示从(1-4-4)进入(4-4-4)module
+
+    // FSM
+    always @ (posedge clk or negedge rst_n)
+        if(!rst_n) state <= IDLE;
+        else begin
+            case (state)
+                IDLE: if(valid) state <= SEND_CMD;
+                SEND_CMD: if(done) state <= IDLE;
+            endcase
+        end
+
+    // 在clk的每次上升沿周期时 变化sck 也就是将clk二分频作为sck
+    // sck只有在ce_n有效时才会 升降处理
+    always @ (posedge clk or negedge rst_n)
+        if(!rst_n)
+            sck <= 1'b0;
+        else if(~ce_n)
+            sck <= ~ sck;
+        else if(state == IDLE)
+            sck <= 1'b0;
+
+    // ce_n低电平有效 用于使能对应设备
+    // 当主状态机进入到 READ 状态时会 使能ce_n， 即存在有效请求时使能设备
+    // ce_n有效以后的下一个时钟周期 会开始变化sck
+    always @ (posedge clk or negedge rst_n)
+        if(!rst_n)
+            ce_n <= 1'b1;
+        else if(state == SEND_CMD)
+            ce_n <= 1'b0;
+        else
+            ce_n <= 1'b1;
+
+    // 计数 用于记录经过了多少个SCK sck下降沿计数
+    // 为什么是下降沿 因为在ce_n有效时clk的上升沿会变化sck
+    always @ (posedge clk or negedge rst_n)
+        if(!rst_n)
+            counter <= 8'b0;
+        else if(sck & ~done)
+            counter <= counter + 1'b1;
+        else if(state == IDLE)
+            counter <= 8'b0;
+
+    // counter < 8: 发送命令 命令是按照1bit发送的 先发送MSB
+    // counter 8~13: 发送地址 地址是按照4bit发送的 也是发送MSB
+    assign dout     =   (counter < 8)   ?   {3'b0, CMD_01H[7 - counter]}:
+                        4'h0;
+
+    // counter< 8时 是向psram发送 cmd
+    assign douten   = (counter < 8);
+
+    // counter == 8时 说明 命令已发完
+    assign done     = (counter == FINAL_COUNT+1);
+
+endmodule
+
 //USING EBH Command
 module PSRAM_READER (
     input   wire            clk,
     input   wire            rst_n,
+    input   wire            qpi_enable,
     input   wire [23:0]     addr,
     input   wire            rd,
     input   wire [2:0]      size,
@@ -64,7 +141,8 @@ module PSRAM_READER (
 
     // READ 使用1-4-4 8cycle:cmd 24/2cycle:addr size:width/8->size width/4->cycle size*2cycle
     // 而因为 READ 时 size 总是4 -> 需要 19 + 4 * 2 = 27cycle
-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
+    // qpi fast mode 时 传输cmd由8减为2
+    wire [7:0]  FINAL_COUNT = qpi_enable ? 13 + size * 2 : 19 + size * 2; // was 27: Always read 1 word
 
     reg         state, nstate;
     reg [7:0]   counter;
@@ -127,27 +205,39 @@ module PSRAM_READER (
     //         那么counter[7:1]就是8'd10 8'd10 8'd11 8'd11 8'd12 8'd12 8'd13 8'd13
     // 每次存data[0]的8bit data[1]的8bit ...
     // 也就是说接收8个sck 从低字节接收 每次先接收字节内的高4bit
-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
+    // qpi-mode时 14 15 16 17 18 19 20 21 8'b00001110 
+    //            8'd7 8'd7 8'd8 8'd8 8'd9 8'd9 8'd10 8'd10
+    wire[1:0] byte_index = qpi_enable ? {counter[7:1] - 8'd7}[1:0] : {counter[7:1] - 8'd10}[1:0];
     always @ (posedge clk)
         //20~27是传递数据
         //din从低位接收 因为接受到的是msb
-        if(counter >= 20 && counter <= FINAL_COUNT)
+        if((qpi_enable ? counter >= 14 : counter >= 20) && counter <= FINAL_COUNT)
             if(sck)
                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
 
     // counter < 8: 发送命令 命令是按照1bit发送的 先发送MSB
     // counter 8~13: 发送地址 地址是按照4bit发送的 也是发送MSB
-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+    assign dout     =   qpi_enable ?  
+                        ((counter < 2) ? CMD_EBH[7 - 4 * counter -: 4] :
+                        (counter == 2) ? saddr[23:20]        :
+                        (counter == 3) ? saddr[19:16]        :
+                        (counter == 4) ? saddr[15:12]        :
+                        (counter == 5) ? saddr[11:8]         :
+                        (counter == 6) ? saddr[7:4]          :
+                        (counter == 7) ? saddr[3:0]          :
+                        4'h0)
+                        : 
+                        ((counter < 8)  ?   {3'b0, CMD_EBH[7 - counter]}:
                         (counter == 8)  ?   saddr[23:20]        :
                         (counter == 9)  ?   saddr[19:16]        :
                         (counter == 10) ?   saddr[15:12]        :
                         (counter == 11) ?   saddr[11:8]         :
                         (counter == 12) ?   saddr[7:4]          :
                         (counter == 13) ?   saddr[3:0]          :
-                        4'h0;
+                        4'h0);
 
     // counter<14时 是向psram发送 cmd 和 addr
-    assign douten   = (counter < 14);
+    assign douten   = qpi_enable ? (counter < 8) : (counter < 14);
 
     // counter == 28时 说明数据全接收到了
     assign done     = (counter == FINAL_COUNT+1);
@@ -168,6 +258,7 @@ endmodule
 module PSRAM_WRITER (
     input   wire            clk,
     input   wire            rst_n,
+    input   wire            qpi_enable,
     input   wire [23:0]     addr,
     input   wire [31: 0]    line,
     input   wire [2:0]      size,
@@ -185,7 +276,7 @@ module PSRAM_WRITER (
                 WRITE = 1'b1;
 
     // 和READER一样 只不过size确实是根据 1 2 4有不同的数值 且没有延迟
-    wire[7:0]        FINAL_COUNT = 13 + size*2;
+    wire[7:0]        FINAL_COUNT = qpi_enable ? 7 + size * 2 : 13 + size*2;
 
     reg         state, nstate;
     reg [7:0]   counter;
@@ -237,7 +328,24 @@ module PSRAM_WRITER (
 
     // MSB 发送 command和addr
     // LSB 发送 数据line 且 每次先发送字节的高4bit
-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+    assign dout     =   qpi_enable ? 
+                        ((counter < 2)  ? CMD_38H[7 - 4 * counter -: 4] :
+                        (counter == 2)  ?   saddr[23:20]        :
+                        (counter == 3)  ?   saddr[19:16]        :
+                        (counter == 4)  ?   saddr[15:12]        :
+                        (counter == 5)  ?   saddr[11:8]         :
+                        (counter == 6)  ?   saddr[7:4]          :
+                        (counter == 7)  ?   saddr[3:0]          :
+                        (counter == 8)  ?   line[7:4]           :
+                        (counter == 9)  ?   line[3:0]           :
+                        (counter == 10) ?   line[15:12]         :
+                        (counter == 11) ?   line[11:8]          :
+                        (counter == 12) ?   line[23:20]         :
+                        (counter == 13) ?   line[19:16]         :
+                        (counter == 14) ?   line[31:28]         :
+                        line[27:24])
+                        :
+                        ((counter < 8)  ?   {3'b0, CMD_38H[7 - counter]}:
                         (counter == 8)  ?   saddr[23:20]        :
                         (counter == 9)  ?   saddr[19:16]        :
                         (counter == 10) ?   saddr[15:12]        :
@@ -251,7 +359,7 @@ module PSRAM_WRITER (
                         (counter == 18) ?   line[23:20]         :
                         (counter == 19) ?   line[19:16]         :
                         (counter == 20) ?   line[31:28]         :
-                        line[27:24];
+                        line[27:24]);
 
     assign douten   = (~ce_n);
 

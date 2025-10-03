@@ -17,7 +17,6 @@
 `timescale              1ns/1ps
 `default_nettype        none
 
-// Using EBH Command
 module EF_PSRAM_CTRL_wb (
     // WB bus Interface-wishbone
     input   wire        clk_i,
@@ -39,8 +38,15 @@ module EF_PSRAM_CTRL_wb (
     output  wire [3:0]      douten
 );
 
-    localparam  ST_IDLE = 1'b0,
-                ST_WAIT = 1'b1;
+    localparam  ST_IDLE = 2'h0,
+                ST_RESET_CMD = 2'h1,
+                ST_WAIT = 2'h2;
+
+    //传递给 RESET_CMD 的接口 
+    wire        mcmd_sck;
+    wire        mcmd_ce_n;
+    wire [3:0]  mcmd_dout;
+    wire        mcmd_doe;
 
     //传递给CTRL_R 的接口 得到读对应的SPI接口
     wire        mr_sck;
@@ -57,6 +63,8 @@ module EF_PSRAM_CTRL_wb (
     wire        mw_doe;
 
     // 发出请求 以及 响应
+    reg         mcmd_valid;
+    wire        mcmd_done;
     wire        mr_rd; //发出的是读操作 且 总线操作有效
     wire        mr_done; //读操作 CTRL_R响应完成
     wire        mw_wr; //发出的是写操作 且 总线操作有效
@@ -67,30 +75,48 @@ module EF_PSRAM_CTRL_wb (
     wire        wb_valid        =   cyc_i & stb_i;
     wire        wb_we           =   we_i & wb_valid;
     wire        wb_re           =   ~we_i & wb_valid;
+    
+    reg         qpi_enable;
 
     // 更新状态机逻辑
-    reg         state, nstate;
+    reg [1:0]   state, nstate;
+
     always @ (posedge clk_i or posedge rst_i)
-        if(rst_i)
+        if(rst_i) begin
             state <= ST_IDLE;
-        else
+        end else
             state <= nstate;
 
     // 设置nstate
     always @* begin
-        case(state)
-            ST_IDLE :
-                if(wb_valid) // 存在有效总线操作时 进入WAIT状态
-                    nstate = ST_WAIT;
-                else
-                    nstate = ST_IDLE;
+        if(rst_i) begin
+            nstate = ST_IDLE;
+            mcmd_valid = 'b1;
+            qpi_enable = 'b0;
+        end else
+            case(state)
+                ST_IDLE :  
+                    if(mcmd_valid) //复位后进入RESET_CMD 发送QPI-（4-4-4)
+                        nstate = ST_RESET_CMD;
+                    else if(wb_valid) // 存在有效总线操作时 进入WAIT状态
+                        nstate = ST_WAIT;
+                    else 
+                        nstate = ST_IDLE;
 
-            ST_WAIT :
-                if((mw_done & wb_we) | (mr_done & wb_re)) //当对应的操作完成时 进入IDLE
-                    nstate = ST_IDLE;
-                else
-                    nstate = ST_WAIT;
-        endcase
+                ST_RESET_CMD:
+                    if(mcmd_done) begin
+                        mcmd_valid = 'b0;
+                        qpi_enable = 'b1;
+                        nstate = ST_IDLE;
+                    end
+
+                ST_WAIT :
+                    if((mw_done & wb_we) | (mr_done & wb_re)) //当对应的操作完成时 进入IDLE
+                        nstate = ST_IDLE;
+                    else
+                        nstate = ST_WAIT;
+                default : nstate = ST_IDLE;
+            endcase
     end
 
     // 根据sel-也就是AXI APB里的strb 得到访问字节数
@@ -134,9 +160,21 @@ module EF_PSRAM_CTRL_wb (
     //控制器模块 得到读写对应的SPI 输出
     //  读使用4B对齐
     //  写使用1B对齐
+    PSRAM_RESET_CMD MCMD(
+        .clk(clk_i),
+        .rst_n(~rst_i),
+        .done(mcmd_done),
+        .valid(state == ST_IDLE && mcmd_valid),
+        .sck(mcmd_sck),
+        .ce_n(mcmd_ce_n),
+        .dout(mcmd_dout),
+        .douten(mcmd_doe)
+    );
+
     PSRAM_READER MR (
         .clk(clk_i),
         .rst_n(~rst_i),
+        .qpi_enable(qpi_enable),
         .addr({adr_i[23:2],2'b0}),
         .rd(mr_rd),
         //.size(size), Always read a word
@@ -153,6 +191,7 @@ module EF_PSRAM_CTRL_wb (
     PSRAM_WRITER MW (
         .clk(clk_i),
         .rst_n(~rst_i),
+        .qpi_enable(qpi_enable),
         .addr({adr_i[23:0]}),
         .wr(mw_wr),
         .size(size),
@@ -166,12 +205,12 @@ module EF_PSRAM_CTRL_wb (
     );
 
     // 根据读写请求有效与否wb_we或者wb_re 得到 最后输出是输出哪个控制器的
-    assign sck  = wb_we ? mw_sck  : mr_sck;
-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
-    assign dout = wb_we ? mw_dout : mr_dout;
-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
+    assign sck  = mcmd_valid ? mcmd_sck : wb_we ? mw_sck  : mr_sck;
+    assign ce_n = mcmd_valid ? mcmd_ce_n : wb_we ? mw_ce_n : mr_ce_n;
+    assign dout = mcmd_valid ? mcmd_dout : wb_we ? mw_dout : mr_dout;
+    assign douten  = mcmd_valid ? {4{mcmd_doe}} : wb_we ? {4{mw_doe}}  : {4{mr_doe}};
 
     assign mw_din = din;
     assign mr_din = din;
-    assign ack_o = wb_we ? mw_done :mr_done ;
+    assign ack_o = mcmd_valid ? mcmd_done : wb_we ? mw_done :mr_done ;
 endmodule

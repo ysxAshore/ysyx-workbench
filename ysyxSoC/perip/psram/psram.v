@@ -17,6 +17,8 @@ module psram(
   reg [7:0] recv_data [3:0];
   wire [31:0] line;
 
+  reg qpi_enable;
+
   // 实例化psram_cmd 通过DPI-C 实现psram的读or写 
   wire ren = (state == wait_t) && (counter == 'd5); // 会有一个6cycle的读延迟
   wire wen = (state == wdata_t) && (counter == 'h2 || counter == 'h4 || counter == 'h8); //假如是一个写2B 或者写4B 这里提前发出一次写小的 并不会有问题
@@ -39,8 +41,11 @@ module psram(
   always @(posedge sck or posedge reset) begin
     if(reset) state <= cmd_t;
     else begin
+      if(state == cmd_t && {cmd[6:0], din[0]} == 'h01)
+        qpi_enable = 'b1;
+
       case (state) 
-        cmd_t : state <= (counter == 'd7) ? addr_t : state;
+        cmd_t : state <= (qpi_enable ? (counter == 'd1 ) : (counter == 'd7)) ? addr_t : state;
         addr_t : state <= (cmd != 'heb && cmd != 'h38) ? err_t : 
                           (cmd == 'heb && counter == 'd5) ? wait_t : 
                           (cmd == 'h38 && counter == 'd5) ? wdata_t :
@@ -62,7 +67,7 @@ module psram(
       counter <= 'h0; 
     end else begin
         case (state)
-          cmd_t: counter <= (counter < 'd7) ? counter + 'd1 : 'd0;
+          cmd_t: counter <= (qpi_enable ? (counter < 'd1) : (counter < 'd7)) ? counter + 'd1 : 'd0;
           addr_t: counter <= (counter < 'd5) ? counter + 'd1 : 'd0;
           wait_t: counter <= (counter < 'd5) ? counter + 'd1 : 'd0;
           default: counter <= counter + 'd1;  
@@ -73,7 +78,7 @@ module psram(
   // 上升沿采样command 先发送的是MSB
   always @(posedge sck or posedge reset) begin
     if(reset) cmd <= 'h0;
-    else if(state == cmd_t) cmd <= {cmd[6:0], din[0]};
+    else if(state == cmd_t) cmd <= qpi_enable ? {cmd[3:0], din} :{cmd[6:0], din[0]};
   end
 
   // 上升沿采样command 先发送的是MSB
