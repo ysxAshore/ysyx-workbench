@@ -46,6 +46,3 @@ void psram_test()
     }
 
 }
-int main(){
-	psram_test();
-}

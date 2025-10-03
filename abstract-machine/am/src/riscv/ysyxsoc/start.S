@@ -17,8 +17,8 @@ _start:
   la sp, _stack_pointer
 
   # bootloader: load mrom data to sram
-  la a0, _sram_data_begin
-  la a1, _sram_data_end
+  la a0, _psram_data_begin
+  la a1, _psram_data_end
   la a2, _flash_data_begin
 
 copy:

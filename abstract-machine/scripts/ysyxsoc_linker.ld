@@ -1,6 +1,7 @@
 MEMORY {
-    flash (rx)  : ORIGIN = 0x30000000, LENGTH = 16M
-    sram  (rwx) : ORIGIN = 0x0f000000, LENGTH = 8K
+    flash (rx)  : ORIGIN = _flash_start, LENGTH = 16M
+    psram (rwx)  : ORIGIN = _psram_start, LENGTH = 4M
+    sram  (rwx) : ORIGIN = _sram_start,  LENGTH = 8K
 }
 
 ENTRY(_start)
@@ -22,11 +23,11 @@ SECTIONS {
   /* 这里要进行对齐 不然_flash_data_begin可能会是不对齐的 导致 copy时得到错误地址 */
   /* 比如string.c中 _flash_data_begin=300000dd 得到的是000d7c00 就少读了一字节 导致访存错误*/
   .data : ALIGN(0x4){
-    _sram_data_begin = .;
+    _psram_data_begin = .;
     *(.data*)
     *(.sdata*)
-    _sram_data_end = .;
-  } > sram AT> flash :data  /* VMA 在 SRAM, LMA 在 flash */
+    _psram_data_end = .;
+  } > psram AT> flash :data  /* VMA 在 PSRAM, LMA 在 flash */
 
   _flash_data_begin = LOADADDR(.data);
 
@@ -47,10 +48,10 @@ SECTIONS {
     *(.sbss*)
     *(.scommon)
     _bss_end = .;
-  } > sram
+  } > psram
 
   _stack_top = ALIGN(0x4);
-  . = _stack_top + 0x1000;
+  . = _stack_top + 0x10000;
   _stack_pointer = .;
   end = .;
   _end = .;
