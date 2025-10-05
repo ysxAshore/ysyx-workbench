@@ -27,7 +27,9 @@ void invalid_inst(vaddr_t thispc);
 #define NPCTRAP(thispc, code) set_npc_state(NPC_END, thispc, code)
 #define INV(thispc) invalid_inst(thispc)
 #define DUMP_VCD() IFDEF(CONFIG_VCD, do {\
-    extern VerilatedVcdC *tfp;\
-        tfp->dump(Verilated::time()); } while (0))
+    extern VerilatedVcdC *tfp; \
+    if (Verilated::time() >= CONFIG_VCD_START && Verilated::time() <= CONFIG_VCD_END) { \
+        tfp->dump(Verilated::time()); \
+    } } while (0))
 
 #endif

@@ -14,7 +14,7 @@ LDSCRIPTS += $(AM_HOME)/scripts/ysyxsoc_linker.ld
 LDFLAGS   += --defsym=_flash_start=0x30000000 \
 			 --defsym=_sram_start=0x0f000000 \
 			 --defsym=_psram_start=0x80000000
-LDFLAGS   += --gc-sections -e _start
+LDFLAGS   += --gc-sections -e _fsbl
 
 CONFIG_TIME_ZONE := $(shell grep ^CONFIG_TIME_ZONE= $(NPC_HOME)/include/config/auto.conf | cut -d= -f2)
 CFLAGS += -DCONFIG_TIME_ZONE=$(CONFIG_TIME_ZONE)
@@ -31,7 +31,7 @@ insert-arg: image
 image: image-dep
 	@$(OBJDUMP) -d $(IMAGE).elf > $(IMAGE).txt
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
-	@$(OBJCOPY) -O binary -j .text -j .data $(IMAGE).elf $(IMAGE).bin
+	@$(OBJCOPY) -O binary -j .fsbl -j .ssbl -j .user_program $(IMAGE).elf $(IMAGE).bin
 
 run: insert-arg
 	$(MAKE) -C $(NPC_HOME) ISA=$(ISA) run ARGS="$(YSYXSOC_FLAGS)" IMG=$(IMAGE).bin
