@@ -13,11 +13,11 @@
 #define TIME_RTC_ADDR 0x20001008    // 0x2000_1000~0x2000_1010
 #define FB_ADDR 0x21000000          // 0x2100_0000~0x211f_ffff
 
-extern char _psram_start;
+extern char _sdram_start;
 
 // define heap size
-#define PMEM_SIZE (4 * 1024 * 1024)
-#define PMEM_END ((uintptr_t)&_psram_start + PMEM_SIZE)
+#define PMEM_SIZE (64 * 1024 * 1024)
+#define PMEM_END ((uintptr_t)&_sdram_start + PMEM_SIZE)
 
 typedef uintptr_t PTE;
 

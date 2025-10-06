@@ -1,6 +1,7 @@
 MEMORY {
     flash (rx)  : ORIGIN = _flash_start, LENGTH = 16M
-    psram (rwx)  : ORIGIN = _psram_start, LENGTH = 4M
+    sdram (rwx) : ORIGIN = _sdram_start, LENGTH = 64M
+    psram (rwx) : ORIGIN = _psram_start, LENGTH = 4M
     sram  (rwx) : ORIGIN = _sram_start,  LENGTH = 8K
 }
 
@@ -27,7 +28,7 @@ SECTIONS {
   _ssbl_program_begin = LOADADDR(.ssbl);
 
   .user_program : ALIGN(0x8) {
-    _psram_copy_begin = .;
+    _sdram_copy_begin = .;
     *(entry)
     *(.text*)
     *(.rodata*)
@@ -62,8 +63,8 @@ SECTIONS {
     *(__am_apps.sdata*)
     __am_apps_data_end = .;
     . = ALIGN(8);
-    _psram_copy_end = .;
-  } > psram AT> flash :user_program /* 运行在psram LMA在flash */
+    _sdram_copy_end = .;
+  } >sdram AT> flash :user_program /* 运行在sdram LMA在flash */
 
   /* 这里要进行对齐 不然_flash_data_begin可能会是不对齐的 导致 copy时得到错误地址 */
   /* 比如string.c中 _flash_data_begin=300000dd 得到的是000d7c00 就少读了一字节 导致访存错误*/
@@ -88,7 +89,7 @@ SECTIONS {
     *(.sbss*)
     *(.scommon)
     _bss_end = .;
-  } > psram
+  } > sdram
 
   _stack_top = ALIGN(0x8);
   . = _stack_top + 0x10000;

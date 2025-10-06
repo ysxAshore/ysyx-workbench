@@ -13,7 +13,8 @@ CFLAGS    += -fdata-sections -ffunction-sections
 LDSCRIPTS += $(AM_HOME)/scripts/ysyxsoc_linker.ld
 LDFLAGS   += --defsym=_flash_start=0x30000000 \
 			 --defsym=_sram_start=0x0f000000 \
-			 --defsym=_psram_start=0x80000000
+			 --defsym=_psram_start=0x80000000 \
+			 --defsym=_sdram_start=0xa0000000
 LDFLAGS   += --gc-sections -e _fsbl
 
 CONFIG_TIME_ZONE := $(shell grep ^CONFIG_TIME_ZONE= $(NPC_HOME)/include/config/auto.conf | cut -d= -f2)

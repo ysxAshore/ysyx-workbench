@@ -38,8 +38,8 @@ copy2sram:
 
 _ssbl:
   # second stage bootloader: load user program and data from flash to psram
-  la t0, _psram_copy_begin
-  la t1, _psram_copy_end
+  la t0, _sdram_copy_begin
+  la t1, _sdram_copy_end
   la t2, _user_program_begin
 
 copy2psram:

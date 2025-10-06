@@ -46,7 +46,3 @@ void sdram_test()
     }
 
 }
-
-int main(){
-	sdram_test();
-}
