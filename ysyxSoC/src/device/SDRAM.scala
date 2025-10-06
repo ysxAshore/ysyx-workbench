@@ -3,6 +3,7 @@ package ysyx
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.Analog
+import chisel3.experimental.IntParam
 
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.amba.apb._
@@ -10,25 +11,44 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.util._
 
-class SDRAMIO extends Bundle {
+class SDRAM_SINGLE_IO extends Bundle {
   val clk = Output(Bool())
   val cke = Output(Bool())
-  val cs  = Output(Bool())
+  val cs = Output(Bool())
   val ras = Output(Bool())
   val cas = Output(Bool())
-  val we  = Output(Bool())
-  val a   = Output(UInt(13.W))
-  val ba  = Output(UInt(2.W))
+  val we = Output(Bool())
+  val a = Output(UInt(13.W))
+  val ba = Output(UInt(2.W))
   val dqm = Output(UInt(2.W))
-  val dq  = Analog(16.W)
+  val dq = Analog(16.W)
+}
+
+class SDRAM_APB_IO extends Bundle {
+  val clk = Output(Bool())
+  val cke = Output(Bool())
+  val cs = Output(Bool())
+  val ras = Output(Bool())
+  val cas = Output(Bool())
+  val we = Output(Bool())
+  val a = Output(UInt(13.W))
+  val ba = Output(UInt(2.W))
+  val dqm_low = Output(UInt(2.W))
+  val dqm_high = Output(UInt(2.W))
+  val dq_low = Analog(16.W)
+  val dq_high = Analog(16.W)
 }
 
 class sdram_top_axi extends BlackBox {
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())
-    val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
-    val sdram = new SDRAMIO
+    val in = Flipped(
+      new AXI4Bundle(
+        AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)
+      )
+    )
+    val sdram = new SDRAM_SINGLE_IO
   })
 }
 
@@ -36,35 +56,44 @@ class sdram_top_apb extends BlackBox {
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())
-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
-    val sdram = new SDRAMIO
+    val in =
+      Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+    val sdram = new SDRAM_APB_IO
   })
 }
 
-class sdram extends BlackBox {
-  val io = IO(Flipped(new SDRAMIO))
+class sdram(num: Int) extends BlackBox(Map("NUM" -> IntParam(num))) {
+  val io = IO(Flipped(new SDRAM_SINGLE_IO))
 }
 
 class sdramChisel extends RawModule {
-  val io = IO(Flipped(new SDRAMIO))
+  val io = IO(Flipped(new SDRAM_SINGLE_IO))
 }
 
-class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters)
+    extends LazyModule {
   val beatBytes = 4
-  val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
-    Seq(AXI4SlaveParameters(
-        address       = address,
-        executable    = true,
-        supportsWrite = TransferSizes(1, beatBytes),
-        supportsRead  = TransferSizes(1, beatBytes),
-        interleavedId = Some(0))
-    ),
-    beatBytes  = beatBytes)))
+  val node = AXI4SlaveNode(
+    Seq(
+      AXI4SlavePortParameters(
+        Seq(
+          AXI4SlaveParameters(
+            address = address,
+            executable = true,
+            supportsWrite = TransferSizes(1, beatBytes),
+            supportsRead = TransferSizes(1, beatBytes),
+            interleavedId = Some(0)
+          )
+        ),
+        beatBytes = beatBytes
+      )
+    )
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val sdram_bundle = IO(new SDRAMIO)
+    val sdram_bundle = IO(new SDRAM_APB_IO)
 
     val msdram = Module(new sdram_top_axi)
     msdram.io.clock := clock
@@ -74,19 +103,28 @@ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMo
   }
 }
 
-class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
-    Seq(APBSlaveParameters(
-      address       = address,
-      executable    = true,
-      supportsRead  = true,
-      supportsWrite = true)),
-    beatBytes  = 4)))
+class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters)
+    extends LazyModule {
+  val node = APBSlaveNode(
+    Seq(
+      APBSlavePortParameters(
+        Seq(
+          APBSlaveParameters(
+            address = address,
+            executable = true,
+            supportsRead = true,
+            supportsWrite = true
+          )
+        ),
+        beatBytes = 4
+      )
+    )
+  )
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val (in, _) = node.in(0)
-    val sdram_bundle = IO(new SDRAMIO)
+    val sdram_bundle = IO(new SDRAM_APB_IO)
 
     val msdram = Module(new sdram_top_apb)
     msdram.io.clock := clock

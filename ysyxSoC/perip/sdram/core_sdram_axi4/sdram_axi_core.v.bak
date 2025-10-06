@@ -42,8 +42,7 @@ module sdram_axi_core
     ,input  [  7:0]  inport_len_i
     ,input  [ 31:0]  inport_addr_i
     ,input  [ 31:0]  inport_write_data_i
-    ,input  [ 15:0]  sdram_data_input_i_low
-    ,input  [ 15:0]  sdram_data_input_i_high
+    ,input  [ 15:0]  sdram_data_input_i
 
     // Outputs
     ,output          inport_accept_o
@@ -56,12 +55,10 @@ module sdram_axi_core
     ,output          sdram_ras_o
     ,output          sdram_cas_o
     ,output          sdram_we_o
-    ,output [  1:0]  sdram_dqm_o_low
-	,output [  1:0]  sdram_dqm_o_high
+    ,output [  1:0]  sdram_dqm_o
     ,output [ 12:0]  sdram_addr_o
     ,output [  1:0]  sdram_ba_o
-    ,output [ 15:0]  sdram_data_output_o_low
-    ,output [ 15:0]  sdram_data_output_o_high
+    ,output [ 15:0]  sdram_data_output_o
     ,output          sdram_data_out_en_o
 );
 
@@ -95,8 +92,8 @@ localparam CMD_PRECHARGE     = 4'b0010;
 localparam CMD_REFRESH       = 4'b0001;
 localparam CMD_LOAD_MODE     = 4'b0000;
 
-// Mode: CAS=2
-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
+// Mode: Burst Length = 4 bytes, CAS=2
+localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
 
 // SM states
 localparam STATE_W           = 4;
@@ -106,9 +103,10 @@ localparam STATE_IDLE        = 4'd2;
 localparam STATE_ACTIVATE    = 4'd3;
 localparam STATE_READ        = 4'd4;
 localparam STATE_READ_WAIT   = 4'd5;
-localparam STATE_WRITE       = 4'd6;
-localparam STATE_PRECHARGE   = 4'd7;
-localparam STATE_REFRESH     = 4'd8;
+localparam STATE_WRITE0      = 4'd6;
+localparam STATE_WRITE1      = 4'd7;
+localparam STATE_PRECHARGE   = 4'd8;
+localparam STATE_REFRESH     = 4'd9;
 
 // A[10] 表示是否采取AUTO_PRECHARGE 且 在PRECHAGE Command下表示是否对所有banks进行precharge操作
 localparam AUTO_PRECHARGE    = 10;
@@ -156,31 +154,20 @@ assign inport_accept_o    = ram_accept_w;
 
 reg [CMD_W-1:0]        command_q; // 记录本时钟周期 向SDRAM发出的命令
 reg [SDRAM_ROW_W-1:0]  addr_q;
-
-// 位扩展 设置自己的data_q dqm_q 以适应两个16bit的SDRAM
-reg [SDRAM_DATA_W-1:0] data_q_low;
-reg [SDRAM_DATA_W-1:0] data_q_high;
-reg [SDRAM_DQM_W-1:0]  dqm_q_low;
-reg [SDRAM_DQM_W-1:0]  dqm_q_high;
-
+reg [SDRAM_DATA_W-1:0] data_q;
 reg                    data_rd_en_q; // 记录本周期 是否有读数据请求
-
-
+reg [SDRAM_DQM_W-1:0]  dqm_q;
 reg                    cke_q;
 reg [SDRAM_BANK_W-1:0] bank_q;
 
-/* 这里不再进行突发传输 所以 不需要buffer来缓存数据和dqm了
 // Buffer half word during read and write commands
 // 因为要传输32bit 而SDRAM是x16模式 所以需要两个周期传输
 // write时 在WRITE0周期 传输低16bit 在WRITE1周期传输高16bit 所以data_buffer_q存储高16bit
 // read时 可以用来缓存低16bit 从而汇聚32bit传输给APB接口
 reg [SDRAM_DATA_W-1:0] data_buffer_q;
 reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
-*/
 
-// 低16bit SDRAM和高16bit SDRAM的sdram_out_data
-wire [SDRAM_DATA_W-1:0] sdram_data_in_w_low;
-wire [SDRAM_DATA_W-1:0] sdram_data_in_w_high;
+wire [SDRAM_DATA_W-1:0] sdram_data_in_w;
 
 reg                    refresh_q;
 
@@ -246,7 +233,7 @@ begin
             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
             begin
                 if (!ram_rd_w)
-                    next_state_r = STATE_WRITE;
+                    next_state_r = STATE_WRITE0;
                 else
                     next_state_r = STATE_READ;
             end
@@ -257,7 +244,7 @@ begin
                 next_state_r   = STATE_PRECHARGE;
 
                 if (!ram_rd_w)
-                    target_state_r = STATE_WRITE;
+                    target_state_r = STATE_WRITE0;
                 else
                     target_state_r = STATE_READ;
             end
@@ -268,7 +255,7 @@ begin
                 next_state_r   = STATE_ACTIVATE;
 
                 if (!ram_rd_w)
-                    target_state_r = STATE_WRITE;
+                    target_state_r = STATE_WRITE0;
                 else
                     target_state_r = STATE_READ;
             end
@@ -305,17 +292,25 @@ begin
         end
     end
     //-----------------------------------------
-    // STATE_WRITE 写数据给低16bit SDRAM 和高16bit SDRAM
+    // STATE_WRITE0 写低16bit
     //-----------------------------------------
-    STATE_WRITE :
+    STATE_WRITE0 :
+    begin
+        next_state_r = STATE_WRITE1;
+    end
+    //-----------------------------------------
+    // STATE_WRITE1 写高16bit 并且在当前操作完成之后 如果没有refresh pending的情况下 直接进行下一次同bank同row的写
+    //-----------------------------------------
+    STATE_WRITE1 :
     begin
         next_state_r = STATE_IDLE;
+
         // Another pending write request (with no refresh pending)
         if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
         begin
             // Open row hit
             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
-                next_state_r = STATE_WRITE;
+                next_state_r = STATE_WRITE0;
         end
     end
     //-----------------------------------------
@@ -491,32 +486,18 @@ else if (state_q == STATE_REFRESH)
 //-----------------------------------------------------------------
 
 reg [SDRAM_DATA_W-1:0] sample_data0_q;
-reg [SDRAM_DATA_W-1:0] sample_data1_q;
 always @ (posedge clk_i or posedge rst_i)
 if (rst_i)
     sample_data0_q <= {SDRAM_DATA_W{1'b0}};
 else
-    sample_data0_q <= sdram_data_in_w_low;
+    sample_data0_q <= sdram_data_in_w;
 
-reg [SDRAM_DATA_W-1:0] sample_data_q_low;
+reg [SDRAM_DATA_W-1:0] sample_data_q;
 always @ (posedge clk_i or posedge rst_i)
 if (rst_i)
-    sample_data_q_low <= {SDRAM_DATA_W{1'b0}};
+    sample_data_q <= {SDRAM_DATA_W{1'b0}};
 else
-    sample_data_q_low <= sample_data0_q;
-
-always @ (posedge clk_i or posedge rst_i)
-if (rst_i)
-    sample_data1_q <= {SDRAM_DATA_W{1'b0}};
-else
-    sample_data1_q <= sdram_data_in_w_high;
-
-reg [SDRAM_DATA_W-1:0] sample_data_q_high;
-always @ (posedge clk_i or posedge rst_i)
-if (rst_i)
-    sample_data_q_high <= {SDRAM_DATA_W{1'b0}};
-else
-    sample_data_q_high <= sample_data1_q;
+    sample_data_q <= sample_data0_q;
 
 //-----------------------------------------------------------------
 // Command Output
@@ -527,14 +508,13 @@ always @ (posedge clk_i or posedge rst_i)
 if (rst_i)
 begin
     command_q       <= CMD_NOP;
-    data_q_low      <= 16'b0;
-    data_q_high     <= 16'b0;
+    data_q          <= 16'b0;
     addr_q          <= {SDRAM_ROW_W{1'b0}};
     bank_q          <= {SDRAM_BANK_W{1'b0}};
     cke_q           <= 1'b0;
-    dqm_q_low       <= {SDRAM_DQM_W{1'b0}};
-    dqm_q_low       <= {SDRAM_DQM_W{1'b0}};
+    dqm_q           <= {SDRAM_DQM_W{1'b0}};
     data_rd_en_q    <= 1'b1;
+    dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
 
     for (idx=0;idx<SDRAM_BANKS;idx=idx+1)
         active_row_q[idx] <= {SDRAM_ROW_W{1'b0}};
@@ -652,28 +632,42 @@ begin
         addr_q[AUTO_PRECHARGE]  <= 1'b0;
 
         // Read mask (all bytes in burst)
-        dqm_q_low   <= {SDRAM_DQM_W{1'b0}};
-        dqm_q_high  <= {SDRAM_DQM_W{1'b0}};
+        dqm_q       <= {SDRAM_DQM_W{1'b0}};
     end
     //-----------------------------------------
-    // STATE_WRITE
+    // STATE_WRITE0
     //-----------------------------------------
-    STATE_WRITE :
+    STATE_WRITE0 :
     begin
         command_q       <= CMD_WRITE;
         addr_q          <= addr_col_w;
         bank_q          <= addr_bank_w;
-        data_q_low      <= ram_write_data_w[15:0];
-        data_q_high     <= ram_write_data_w[31:16];
+        data_q          <= ram_write_data_w[15:0];
 
         // Disable auto precharge (auto close of row)
         addr_q[AUTO_PRECHARGE]  <= 1'b0;
 
         // Write mask
-        dqm_q_low       <= ~ram_wr_w[1:0];
-        dqm_q_high      <= ~ram_wr_w[3:2];
+        dqm_q           <= ~ram_wr_w[1:0];
+        dqm_buffer_q    <= ~ram_wr_w[3:2];
 
         data_rd_en_q    <= 1'b0;
+    end
+    //-----------------------------------------
+    // STATE_WRITE1
+    //-----------------------------------------
+    STATE_WRITE1 :
+    begin
+        // Burst continuation
+        command_q   <= CMD_NOP;
+
+        data_q      <= data_buffer_q;
+
+        // Disable auto precharge (auto close of row)
+        addr_q[AUTO_PRECHARGE]  <= 1'b0;
+
+        // Write mask
+        dqm_q       <= dqm_buffer_q;
     end
     endcase
 end
@@ -697,7 +691,6 @@ else
 // Data Buffer
 //-----------------------------------------------------------------
 
-/* 因为现在不需要这个了 现在就是再多一个data_buffer_q_low data_buffer_qhigh
 // Buffer upper 16-bits of write data so write command can be accepted
 // in WRITE0. Also buffer lower 16-bits of read data.
 always @ (posedge clk_i or posedge rst_i)
@@ -707,19 +700,9 @@ else if (state_q == STATE_WRITE0)
     data_buffer_q <= ram_write_data_w[31:16];
 else if (rd_q[SDRAM_READ_LATENCY+1])
     data_buffer_q <= sample_data_q;
-*/
-reg [SDRAM_DATA_W -1:0] data_buffer_q_low;
-reg [SDRAM_DATA_W -1:0] data_buffer_q_high;
-always @ (posedge clk_i or posedge rst_i)
-    if (rst_i)begin
-        data_buffer_q_low  <= 16'b0;
-        data_buffer_q_high <= 16'b0;
-    end else if(rd_q[SDRAM_READ_LATENCY+1]) begin//在读数据的最后一个周期 采样得到data_buffer_q_low data_buffer_q_high
-        data_buffer_q_low  <= sample_data_q_low;
-        data_buffer_q_high <= sample_data_q_high;
-    end
+
 // Read data output
-assign ram_read_data_w = {data_buffer_q_high, data_buffer_q_low};
+assign ram_read_data_w = {sample_data_q, data_buffer_q};
 
 //-----------------------------------------------------------------
 // ACK
@@ -731,7 +714,7 @@ if (rst_i)
     ack_q   <= 1'b0;
 else
 begin
-    if (state_q == STATE_WRITE)
+    if (state_q == STATE_WRITE1)
         ack_q <= 1'b1;
     else if (rd_q[SDRAM_READ_LATENCY+1])
         ack_q <= 1'b1;
@@ -742,27 +725,24 @@ end
 assign ram_ack_w = ack_q;
 
 // Accept command in READ or WRITE0 states
-assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE);
+assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0);
 
 //-----------------------------------------------------------------
 // SDRAM I/O
 //-----------------------------------------------------------------
-assign sdram_clk_o                = ~clk_i; //反向了时钟 控制器上升沿采样 那么SDRAM下降沿发送
-assign sdram_data_out_en_o        = ~data_rd_en_q; // 读数据时 data_rd_en_q=1 输出禁止 写数据时 data_rd_en_q=0 输出使能
-assign sdram_data_output_o_low    =  data_q_low; //输出数据
-assign sdram_data_output_o_high   =  data_q_high; //输出数据
-assign sdram_data_in_w_low        = sdram_data_input_i_low;
-assign sdram_data_in_w_high       = sdram_data_input_i_high;
+assign sdram_clk_o           = ~clk_i; //反向了时钟 控制器上升沿采样 那么SDRAM下降沿发送
+assign sdram_data_out_en_o   = ~data_rd_en_q; // 读数据时 data_rd_en_q=1 输出禁止 写数据时 data_rd_en_q=0 输出使能
+assign sdram_data_output_o   =  data_q; //输出数据
+assign sdram_data_in_w       = sdram_data_input_i;
 
-assign sdram_cke_o      = cke_q;
-assign sdram_cs_o       = command_q[3];
-assign sdram_ras_o      = command_q[2];
-assign sdram_cas_o      = command_q[1];
-assign sdram_we_o       = command_q[0];
-assign sdram_dqm_o_low  = dqm_q_low;
-assign sdram_dqm_o_high = dqm_q_high;
-assign sdram_ba_o       = bank_q;
-assign sdram_addr_o     = addr_q;
+assign sdram_cke_o  = cke_q;
+assign sdram_cs_o   = command_q[3];
+assign sdram_ras_o  = command_q[2];
+assign sdram_cas_o  = command_q[1];
+assign sdram_we_o   = command_q[0];
+assign sdram_dqm_o  = dqm_q;
+assign sdram_ba_o   = bank_q;
+assign sdram_addr_o = addr_q;
 
 //-----------------------------------------------------------------
 // Simulation only
@@ -779,7 +759,8 @@ begin
     STATE_ACTIVATE    : dbg_state = "ACTIVATE";
     STATE_READ        : dbg_state = "READ";
     STATE_READ_WAIT   : dbg_state = "READ_WAIT";
-    STATE_WRITE       : dbg_state = "WRITE";
+    STATE_WRITE0      : dbg_state = "WRITE0";
+    STATE_WRITE1      : dbg_state = "WRITE1";
     STATE_PRECHARGE   : dbg_state = "PRECHARGE";
     STATE_REFRESH     : dbg_state = "REFRESH";
     default           : dbg_state = "UNKNOWN";

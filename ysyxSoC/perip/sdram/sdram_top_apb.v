@@ -20,13 +20,17 @@ module sdram_top_apb (
   output        sdram_we,
   output [12:0] sdram_a,
   output [ 1:0] sdram_ba,
-  output [ 1:0] sdram_dqm,
-  inout  [15:0] sdram_dq
+  output [ 1:0] sdram_dqm_low,
+  output [ 1:0] sdram_dqm_high,
+  inout  [15:0] sdram_dq_low,
+  inout  [15:0] sdram_dq_high
 );
 
   wire sdram_dout_en;
-  wire [15:0] sdram_dout;
-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
+  wire [15:0] sdram_dout_low;
+  wire [15:0] sdram_dout_high;
+  assign sdram_dq_low  = sdram_dout_en ? sdram_dout_low : 16'bz;
+  assign sdram_dq_high = sdram_dout_en ? sdram_dout_high : 16'bz;
 
   // 定义状态机 用于识别读写请求和等待响应
   // ST_IDLE: 空闲状态
@@ -78,11 +82,14 @@ module sdram_top_apb (
     .sdram_ras_o(sdram_ras),
     .sdram_cas_o(sdram_cas),
     .sdram_we_o(sdram_we),
-    .sdram_dqm_o(sdram_dqm),
+    .sdram_dqm_o_low(sdram_dqm_low),
+    .sdram_dqm_o_high(sdram_dqm_high),
     .sdram_addr_o(sdram_a),
     .sdram_ba_o(sdram_ba),
-    .sdram_data_input_i(sdram_dq),
-    .sdram_data_output_o(sdram_dout),
+    .sdram_data_input_i_low(sdram_dq_low),
+    .sdram_data_input_i_high(sdram_dq_high),
+    .sdram_data_output_o_low(sdram_dout_low),
+    .sdram_data_output_o_high(sdram_dout_high),
     .sdram_data_out_en_o(sdram_dout_en)
   );
 

@@ -1,4 +1,4 @@
-module sdram(
+module sdram #(parameter NUM = 0)(
   input        clk,
   input        cke,
   input        cs,
@@ -57,7 +57,7 @@ wire wvalid = state == write_t && command != CMD_TERMINATE && now_burst < burst_
 wire [31:0] rdata;
 assign dq = state == read_t ? rdata[15:0] : 16'bz;
 
-sdram_cmd sdram_cmd_i(
+sdram_cmd #(.NUM(NUM)) sdram_cmd_i (
 	.clock(clk),
 	.rvalid(rvalid),
 	.wvalid(wvalid),
@@ -126,10 +126,10 @@ sdram_cmd sdram_cmd_i(
 
 endmodule
 
-import "DPI-C" function void sdram_read(input int addr,  output int data);
-import "DPI-C" function void sdram_write(input int addr, input int data, input int wsel);
+import "DPI-C" function void sdram_read(input int num, input int addr,  output int data);
+import "DPI-C" function void sdram_write(input int num, input int addr, input int data, input int wsel);
 
-module sdram_cmd(
+module sdram_cmd #(parameter NUM = 0)(
 	input clock,
 	input rvalid,
 	input wvalid,
@@ -141,7 +141,7 @@ module sdram_cmd(
 	output reg [31:0] rdata
 );
 	always @(posedge clock) begin
-		if(rvalid) sdram_read(addr, rdata);
-		if(wvalid) sdram_write(addr,{16'b0,wdata},{30'b0,wsel});
+		if(rvalid) sdram_read(NUM, addr, rdata);
+		if(wvalid) sdram_write(NUM, addr,{16'b0,wdata},{30'b0,wsel});
 	end
 endmodule
