@@ -28,6 +28,14 @@ module sdram_top_apb (
   wire [15:0] sdram_dout;
   assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
 
+  // 定义状态机 用于识别读写请求和等待响应
+  // ST_IDLE: 空闲状态
+  // ST_WAIT_ACCEPT: 等待请求被接受
+  // ST_WAIT_ACK: 等待响应
+  //    在IDLE状态时，如果有读写请求且请求被接受，进入WAIT_ACK状态
+  //    在IDLE状态时，如果有读写请求但请求未被接受，进入WAIT_ACCEPT状态
+  //    在WAIT_ACCEPT状态时，如果请求被接受，进入WAIT_ACK状态，否则继续等待
+  //    在WAIT_ACK状态时，如果收到响应，返回IDLE状态
   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
   reg [1:0] state;
   wire req_accept;
@@ -43,6 +51,7 @@ module sdram_top_apb (
       endcase
   end
 
+  // 读写请求flag: 在IDLE和WAIT_ACCEPT状态时，都需要保证请求的有效
   wire is_read  = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) && !in_pwrite;
   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
   sdram_axi_core #(

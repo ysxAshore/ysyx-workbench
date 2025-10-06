@@ -62,27 +62,26 @@ module sdram_axi_core
     ,output          sdram_data_out_en_o
 );
 
-
-
 //-----------------------------------------------------------------
 // Key Params
 //-----------------------------------------------------------------
-parameter SDRAM_MHZ              = 50;
-parameter SDRAM_ADDR_W           = 24;
-parameter SDRAM_COL_W            = 9;
-parameter SDRAM_READ_LATENCY     = 2;
+parameter SDRAM_MHZ              = 50; // SDRAM时钟频率 50Mhz
+parameter SDRAM_ADDR_W           = 24; // SDRAM地址位宽
+parameter SDRAM_COL_W            = 9;  // SDRAM列地址位宽
+parameter SDRAM_READ_LATENCY     = 2;  // SDRAM读延迟周期数
 
 //-----------------------------------------------------------------
 // Defines / Local params
 //-----------------------------------------------------------------
-localparam SDRAM_BANK_W          = 2;
-localparam SDRAM_DQM_W           = 2;
-localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
-localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
-localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
-localparam SDRAM_START_DELAY     = 100000 / (1000 / SDRAM_MHZ); // 100uS
-localparam SDRAM_REFRESH_CYCLES  = (64000*SDRAM_MHZ) / SDRAM_REFRESH_CNT-1;
+localparam SDRAM_BANK_W          = 2; // 存储体BA位宽
+localparam SDRAM_DQM_W           = 2; // 数据掩码位宽
+localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W; //存储体个数 
+localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W; // 行地址位宽
+localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W; // 刷新行数
+localparam SDRAM_START_DELAY     = 100000 / (1000 / SDRAM_MHZ); // 100us在SDRAM_Mhz下需要多少周期数 模板参数是50Mhz-20ns-5000个 实例化参数是100Mhz-10ns-10000个
+localparam SDRAM_REFRESH_CYCLES  = (64000*SDRAM_MHZ) / SDRAM_REFRESH_CNT-1; // 64ms内要刷新所有行 -> 刷新间隔64000us/行数 刷新间隔/周期时间 = 刷新周期数
 
+// SDRAM commands
 localparam CMD_W             = 4;
 localparam CMD_NOP           = 4'b0111;
 localparam CMD_ACTIVE        = 4'b0011;
@@ -109,12 +108,14 @@ localparam STATE_WRITE1      = 4'd7;
 localparam STATE_PRECHARGE   = 4'd8;
 localparam STATE_REFRESH     = 4'd9;
 
+// A[10] 表示是否采取AUTO_PRECHARGE 且 在PRECHAGE Command下表示是否对所有banks进行precharge操作
 localparam AUTO_PRECHARGE    = 10;
 localparam ALL_BANKS         = 10;
 
+// x16 mode
 localparam SDRAM_DATA_W      = 16;
 
-localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ; // 以ns为单位的时间周期 
 
 // SDRAM timing
 localparam SDRAM_TRCD_CYCLES = (20 + (CYCLE_TIME_NS-1)) / CYCLE_TIME_NS;
@@ -122,7 +123,7 @@ localparam SDRAM_TRP_CYCLES  = (20 + (CYCLE_TIME_NS-1)) / CYCLE_TIME_NS;
 localparam SDRAM_TRFC_CYCLES = (60 + (CYCLE_TIME_NS-1)) / CYCLE_TIME_NS;
 
 //-----------------------------------------------------------------
-// External Interface
+// External Interface: 接收外部输入接口 转换为内部信号 以及赋值外部输出端口
 //-----------------------------------------------------------------
 wire [ 31:0]  ram_addr_w       = inport_addr_i;
 wire [  3:0]  ram_wr_w         = inport_wr_i;
@@ -151,15 +152,18 @@ assign inport_accept_o    = ram_accept_w;
 //synthesis attribute IOB of bank_q is "TRUE"
 //synthesis attribute IOB of data_q is "TRUE"
 
-reg [CMD_W-1:0]        command_q;
+reg [CMD_W-1:0]        command_q; // 记录本时钟周期 向SDRAM发出的命令
 reg [SDRAM_ROW_W-1:0]  addr_q;
 reg [SDRAM_DATA_W-1:0] data_q;
-reg                    data_rd_en_q;
+reg                    data_rd_en_q; // 记录本周期 是否有读数据请求
 reg [SDRAM_DQM_W-1:0]  dqm_q;
 reg                    cke_q;
 reg [SDRAM_BANK_W-1:0] bank_q;
 
 // Buffer half word during read and write commands
+// 因为要传输32bit 而SDRAM是x16模式 所以需要两个周期传输
+// write时 在WRITE0周期 传输低16bit 在WRITE1周期传输高16bit 所以data_buffer_q存储高16bit
+// read时 可以用来缓存低16bit 从而汇聚32bit传输给APB接口
 reg [SDRAM_DATA_W-1:0] data_buffer_q;
 reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
 
@@ -167,9 +171,15 @@ wire [SDRAM_DATA_W-1:0] sdram_data_in_w;
 
 reg                    refresh_q;
 
-reg [SDRAM_BANKS-1:0]  row_open_q;
-reg [SDRAM_ROW_W-1:0]  active_row_q[0:SDRAM_BANKS-1];
+reg [SDRAM_BANKS-1:0]  row_open_q; // 记录每个bank的行是否打开
+reg [SDRAM_ROW_W-1:0]  active_row_q[0:SDRAM_BANKS-1]; // 记录每个bank当前打开的行地址
 
+// 状态机变量
+// r后缀表示组合逻辑变量 是寄存器的输入 即*_r 是下一拍要写入寄存器的值（组合逻辑结果）
+// q后缀表示时序逻辑变量 是寄存器的输出 即*_q 是当前拍已经存进寄存器的值（时序逻辑输出）
+// state_q: 当前状态
+// next_state_r: 下一拍要输入给state_q的状态
+// target_state_r: 若干拍后预期达到的状态
 reg  [STATE_W-1:0]     state_q;
 reg  [STATE_W-1:0]     next_state_r;
 reg  [STATE_W-1:0]     target_state_r;
@@ -177,7 +187,7 @@ reg  [STATE_W-1:0]     target_state_q;
 reg  [STATE_W-1:0]     delay_state_q;
 
 // Address bits
-wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
+wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0}; // x16mode 一个单元内有16B 所以需要两字节对齐
 wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
 wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
 
@@ -186,6 +196,7 @@ wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
 //-----------------------------------------------------------------
 always @ *
 begin
+    // Default - remain in current state
     next_state_r   = state_q;
     target_state_r = target_state_q;
 
@@ -195,7 +206,7 @@ begin
     //-----------------------------------------
     STATE_INIT :
     begin
-        if (refresh_q)
+        if (refresh_q) //have refresh pending
             next_state_r = STATE_IDLE;
     end
     //-----------------------------------------
@@ -209,17 +220,16 @@ begin
         if (refresh_q)
         begin
             // Close open rows, then refresh
-            if (|row_open_q)
+            if (|row_open_q) // any bank open, must precharge first
                 next_state_r = STATE_PRECHARGE;
             else
                 next_state_r = STATE_REFRESH;
 
-            target_state_r = STATE_REFRESH;
-        end
-        // Access request
-        else if (ram_req_w)
+            target_state_r = STATE_REFRESH; // after precharge, go to refresh -> target state
+        end else if (ram_req_w) //不用刷新 有读写请求
         begin
             // Open row hit
+            // 如果当前的bank行已经打开 且 地址行号和当前打开的行号相同
             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
             begin
                 if (!ram_rd_w)
@@ -227,7 +237,8 @@ begin
                 else
                     next_state_r = STATE_READ;
             end
-            // Row miss, close row, open new row
+            // Open row miss, need to precharge
+            // 如果当前的bank行已经打开 但地址行号和当前打开的行号不同 需要先预充电 关闭当前打开的行 此时的target_state是write0 or read
             else if (row_open_q[addr_bank_w])
             begin
                 next_state_r   = STATE_PRECHARGE;
@@ -238,6 +249,7 @@ begin
                     target_state_r = STATE_READ;
             end
             // No open row, open row
+            // 当前bank没有行被打开 那么需要进入ACTIVE 打开一个行 此时的target_state是write0 or read
             else
             begin
                 next_state_r   = STATE_ACTIVATE;
@@ -250,22 +262,22 @@ begin
         end
     end
     //-----------------------------------------
-    // STATE_ACTIVATE
+    // STATE_ACTIVATE 打开当前bank的对应行 此时需要根据target_state_r决定next_state_r
     //-----------------------------------------
-    STATE_ACTIVATE :
+    STATE_ACTIVATE :  
     begin
         // Proceed to read or write state
         next_state_r = target_state_r;
     end
     //-----------------------------------------
-    // STATE_READ
+    // STATE_READ 向SDRAM发出读命令 之后需要进入WAIT 等待CAS Latency才能进行下一次读
     //-----------------------------------------
     STATE_READ :
     begin
         next_state_r = STATE_READ_WAIT;
     end
     //-----------------------------------------
-    // STATE_READ_WAIT
+    // STATE_READ_WAIT 等待CAS Latency。但是如果在没有refresh请求下有同bank同row的读请求，可以直接执行，而不需要等待CAS Latency
     //-----------------------------------------
     STATE_READ_WAIT :
     begin
@@ -280,14 +292,14 @@ begin
         end
     end
     //-----------------------------------------
-    // STATE_WRITE0
+    // STATE_WRITE0 写低16bit
     //-----------------------------------------
     STATE_WRITE0 :
     begin
         next_state_r = STATE_WRITE1;
     end
     //-----------------------------------------
-    // STATE_WRITE1
+    // STATE_WRITE1 写高16bit 并且在当前操作完成之后 如果没有refresh pending的情况下 直接进行下一次同bank同row的写
     //-----------------------------------------
     STATE_WRITE1 :
     begin
@@ -302,7 +314,8 @@ begin
         end
     end
     //-----------------------------------------
-    // STATE_PRECHARGE
+    // STATE_PRECHARGE 如果target_state_r是REFRESH 那么进入REFRESH 根据A[10]决定是对所有bank进行precharge还是只对当前bank进行precharge
+    // 如果target_state_r是READ or WRITE0 那么进入ACTIVATE 打开对应行
     //-----------------------------------------
     STATE_PRECHARGE :
     begin
@@ -321,7 +334,13 @@ begin
         next_state_r = STATE_IDLE;
     end
     //-----------------------------------------
-    // STATE_DELAY
+    // STATE_DELAY 当延时完成后 进入delay_state_q记录的状态
+    // delay_state_q在进入delay状态前被赋值为next_state_r
+    // 这样就可以在各种状态下进行延时
+    //    例如在ACTIVATE状态下 需要tRCD延时后才能进入READ or WRITE0状态
+    //    例如在PRECHARGE状态下 需要tRP延时后才能进入ACTIVATE or REFRESH状态
+    //    例如在REFRESH状态下 需要tRFC延时后才能进入IDLE状态
+    //    例如在READ_WAIT状态下 需要READ_LATENCY延时后才能进入IDLE or READ状态
     //-----------------------------------------
     STATE_DELAY :
     begin
@@ -341,7 +360,12 @@ reg [DELAY_W-1:0] delay_q;
 reg [DELAY_W-1:0] delay_r;
 
 /* verilator lint_off WIDTH */
-
+/*
+ACTIVE状态时:需要等到TRCD周期 才能执行READ or WRITE0
+READ_WAIT状态时:需要等到READ_LATENCY周期 才能执行IDLE or READ
+PRECHARGE状态时:需要等到TRP周期 才能执行ACTIVATE or REFRESH
+REFRESH状态时:需要等到TRFC周期 才能执行IDLE
+*/
 always @ *
 begin
     case (state_q)
@@ -414,6 +438,7 @@ always @ (posedge clk_i or posedge rst_i)
 if (rst_i)
     delay_state_q   <= STATE_IDLE;
 // On entering into delay state, record intended next state
+// 在进入DELAY状态之前(当前状态不是DELAY但是delay_r不为0) 记录下next_state_r
 else if (state_q != STATE_DELAY && delay_r != {DELAY_W{1'b0}})
     delay_state_q   <= next_state_r;
 
@@ -441,9 +466,9 @@ localparam REFRESH_CNT_W = 17;
 
 reg [REFRESH_CNT_W-1:0] refresh_timer_q;
 always @ (posedge clk_i or posedge rst_i)
-if (rst_i)
+if (rst_i) //复位后 timer_q被设置为一个比较大的值 一般是SDRAM的上电稳定时间
     refresh_timer_q <= SDRAM_START_DELAY + 100;
-else if (refresh_timer_q == {REFRESH_CNT_W{1'b0}})
+else if (refresh_timer_q == {REFRESH_CNT_W{1'b0}}) //计数值为0时 重新装载计数值 -> 刷新周期数
     refresh_timer_q <= SDRAM_REFRESH_CYCLES;
 else
     refresh_timer_q <= refresh_timer_q - 1;
@@ -451,7 +476,7 @@ else
 always @ (posedge clk_i or posedge rst_i)
 if (rst_i)
     refresh_q <= 1'b0;
-else if (refresh_timer_q == {REFRESH_CNT_W{1'b0}})
+else if (refresh_timer_q == {REFRESH_CNT_W{1'b0}}) //计数值为0时 置位refresh_q 发起刷新请求
     refresh_q <= 1'b1;
 else if (state_q == STATE_REFRESH)
     refresh_q <= 1'b0;
@@ -515,13 +540,13 @@ begin
     //-----------------------------------------
     STATE_INIT:
     begin
-        // Assert CKE
+        // Assert CKE after 100uS 所以复位以后设置(100us的计数值+100) 是为了这些处理
         if (refresh_timer_q == 50)
         begin
             // Assert CKE after 100uS
             cke_q <= 1'b1;
         end
-        // PRECHARGE
+        // PRECHARGE 对所有bank进行precharge
         else if (refresh_timer_q == 40)
         begin
             // Precharge all banks
@@ -557,6 +582,7 @@ begin
         addr_q        <= addr_row_w;
         bank_q        <= addr_bank_w;
 
+        // 记录打开状态
         active_row_q[addr_bank_w]  <= addr_row_w;
         row_open_q[addr_bank_w]    <= 1'b1;
     end
@@ -602,7 +628,7 @@ begin
         addr_q      <= addr_col_w;
         bank_q      <= addr_bank_w;
 
-        // Disable auto precharge (auto close of row)
+        // Disable auto preharge (auto close of row)
         addr_q[AUTO_PRECHARGE]  <= 1'b0;
 
         // Read mask (all bytes in burst)
@@ -648,6 +674,10 @@ end
 
 //-----------------------------------------------------------------
 // Record read events
+// cycle0: issue read command rd_q[0] = 1
+// cycle1: CAS latency 1 rd_q[1] = 1 低16bit采样sample_data_q0 
+// cycle2: CAS latency 2 rd_q[2] = 1 sample_data_q0采样sample_data_q 高16bit采样在sample_data_q0
+// cycle3: rd_q[3] = 1 此时ACK也可以置为1了 sample_data_q采样得到data_buffer_q 高16bit sample_data_q采样sample_data_q0
 //-----------------------------------------------------------------
 reg [SDRAM_READ_LATENCY+1:0]  rd_q;
 
@@ -700,9 +730,9 @@ assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0);
 //-----------------------------------------------------------------
 // SDRAM I/O
 //-----------------------------------------------------------------
-assign sdram_clk_o           = ~clk_i;
-assign sdram_data_out_en_o   = ~data_rd_en_q;
-assign sdram_data_output_o   =  data_q;
+assign sdram_clk_o           = ~clk_i; //反向了时钟 控制器上升沿采样 那么SDRAM下降沿发送
+assign sdram_data_out_en_o   = ~data_rd_en_q; // 读数据时 data_rd_en_q=1 输出禁止 写数据时 data_rd_en_q=0 输出使能
+assign sdram_data_output_o   =  data_q; //输出数据
 assign sdram_data_in_w       = sdram_data_input_i;
 
 assign sdram_cke_o  = cke_q;

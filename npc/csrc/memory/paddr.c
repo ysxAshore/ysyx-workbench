@@ -149,6 +149,20 @@ extern "C" void psram_write(int32_t addr, int32_t data, int32_t wsize)
     *(uint32_t *)(psram + addr) = (uint32_t)data;
 }
 
+static uint16_t sdram[SDRAM_SIZE / 2] PG_ALIGN = {};
+extern "C" void sdram_read(int32_t addr, int32_t *data)
+{
+  *data = *(int16_t *)(sdram + addr);
+}
+extern "C" void sdram_write(int32_t addr, int32_t data, int32_t wsel)
+{
+  uint16_t origin = *(uint16_t *)(sdram + addr);
+  uint16_t wdata = wsel == 0 ? data & 0xffff : wsel == 1 ? data & 0xff00 | origin & 0xff
+                                           : wsel == 2   ? data & 0x00ff | origin & 0xff00
+                                                         : origin;
+  *(uint16_t *)(sdram + addr) = wdata;
+}
+
 uint8_t *guestAddr_to_hostAddr(paddr_t paddr)
 {
 #ifdef CONFIG_USE_MROM

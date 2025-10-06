@@ -23,6 +23,8 @@
 #define FLASH_SIZE 0x10000000
 #define PSRAM_BASE 0x80000000
 #define PSRAM_SIZE 0x20000000
+#define SDRAM_BASE 0xa0000000
+#define SDRAM_SIZE 0x20000000
 
 uint8_t *guestAddr_to_hostAddr(paddr_t paddr);
 paddr_t hostAddr_to_guestAddr(uint8_t *haddr);
