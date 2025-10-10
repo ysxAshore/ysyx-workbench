@@ -1,6 +1,7 @@
 #include <cpu/cpu.h>
 #include <cpu/difftest.h>
 #include <memory/paddr.h>
+#include <nvboard.h>
 
 #define MAX_INST_TO_PRINT 16
 
@@ -90,6 +91,10 @@ static void exec_once()
         if (sim_time % (clk_period / 2) == 0)
         {
             dut.clock = !dut.clock;
+
+			if(sim_time % clk_period == 0)
+				nvboard_update();
+
             dut.eval();
 
             if (dut.clock && dut.update_dut)

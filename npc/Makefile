@@ -70,6 +70,8 @@ VERILATOR_CFLAGS += -MMD --build -cc --exe --trace\
 				$(VERILATOR_MACRO)\
 				$(VERILATOR_INC_PATH)\
 
+INC_PATH ?=
+
 # Include rules for menuconfig
 include $(NPC_HOME)/scripts/config.mk
 
@@ -79,5 +81,6 @@ LINKAGE += $(ARCHIVES)
 else
 # Include rules to build NPC
 include $(NPC_HOME)/scripts/native.mk
+
 endif
 

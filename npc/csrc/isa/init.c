@@ -1,5 +1,8 @@
 #include <isa.h>
+#include <nvboard.h>
 #include <memory/paddr.h>
+
+void nvboard_bind_all_pins(TOP_NAME* top);
 
 TOP_NAME dut;
 int clk_period = 10;        // 时钟周期 10个仿真时间单位
@@ -61,6 +64,10 @@ void init_isa()
 #else
     memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
 #endif
+
+	/*init nvboard*/
+	nvboard_bind_all_pins(&dut);
+  	nvboard_init();
 
     /* Initialize this virtual computer system. */
     restart();
