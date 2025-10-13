@@ -2,11 +2,11 @@
 #include <nvboard.h>
 #include <memory/paddr.h>
 
-void nvboard_bind_all_pins(TOP_NAME* top);
+void nvboard_bind_all_pins(TOP_NAME *top);
 
 TOP_NAME dut;
-int clk_period = 10;        // 时钟周期 10个仿真时间单位
-static int reset_time = 17; // 复位时间
+int clk_period = 20;        // 时钟周期 20个仿真时间单位
+static int reset_time = 34; // 复位时间
 vluint64_t sim_time = 0;
 #ifdef CONFIG_VCD
 VerilatedVcdC *tfp;
@@ -65,9 +65,9 @@ void init_isa()
     memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
 #endif
 
-	/*init nvboard*/
-	nvboard_bind_all_pins(&dut);
-  	nvboard_init();
+    /*init nvboard*/
+    nvboard_bind_all_pins(&dut);
+    nvboard_init();
 
     /* Initialize this virtual computer system. */
     restart();

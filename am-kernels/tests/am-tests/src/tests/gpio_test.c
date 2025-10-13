@@ -23,8 +23,3 @@ void gpio_test(){
 		wait_time += 1;
 	}
 }
-
-int main(){
-	gpio_test();
-}
-

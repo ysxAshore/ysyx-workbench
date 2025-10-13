@@ -12,14 +12,14 @@ void __am_timer_init()
 {
   uint32_t high = inl(TIME_UPTIME_ADDR + 0x4);
   uint32_t low = inl(TIME_UPTIME_ADDR);
-  start = (((uint64_t)high << 32) + low) * 255 / 100;
+  start = ((uint64_t)high << 32) + low;
 }
 
 void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime)
 {
   uint32_t high = inl(TIME_UPTIME_ADDR + 0x4);
   uint32_t low = inl(TIME_UPTIME_ADDR);
-  uptime->us = (((uint64_t)high << 32) + low) * 255 / 100 - start;
+  uptime->us = ((uint64_t)high << 32) + low - start;
 }
 
 // 1970年之后每年天数（闰年为366天）

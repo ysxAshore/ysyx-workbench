@@ -16,7 +16,7 @@ static inline void init_uart16550()
 
     outb(UART_ADDR + 0x03, 0x83); // LCR bit7 set DLAB
     outb(UART_ADDR + 0x01, 0x00); // 除数高字节
-    outb(UART_ADDR + 0x00, 0x01); // 除数低字节
+    outb(UART_ADDR + 0x00, 0x1b); // 除数低字节
 
     outb(UART_ADDR + 0x03, 0x03); // LCR 8N1 模式
 }
