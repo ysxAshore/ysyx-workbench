@@ -5,8 +5,8 @@
 void nvboard_bind_all_pins(TOP_NAME *top);
 
 TOP_NAME dut;
-int clk_period = 20;        // 时钟周期 20个仿真时间单位
-static int reset_time = 34; // 复位时间
+int clk_period = 20;         // 时钟周期 20个仿真时间单位
+static int reset_time = 217; // 复位时间 1.7周期
 vluint64_t sim_time = 0;
 #ifdef CONFIG_VCD
 VerilatedVcdC *tfp;

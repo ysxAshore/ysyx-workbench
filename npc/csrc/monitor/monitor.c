@@ -110,6 +110,7 @@ static int parse_args(int argc, char *argv[])
 void init_monitor(int argc, char *argv[])
 {
     /* Perform some global initialization. */
+    Verilated::commandArgs(argc, argv);
 
     /* Parse arguments. */
     parse_args(argc, argv);
