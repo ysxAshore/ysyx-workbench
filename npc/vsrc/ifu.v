@@ -29,7 +29,10 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
   input  rlast,
   input  [3 : 0] rid,
   input  [1 : 0] rresp,
-  input  [DATA_WIDTH - 1 : 0] rdata
+  input  [DATA_WIDTH - 1 : 0] rdata,
+  
+  // ifu取到指令 计数器
+  output reg [63:0] ifu_fetch_access
 );
 
   // 当前PC寄存器
@@ -37,7 +40,7 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
   reg fetch_valid;
 
   // 存储ID阶段发来的PC
-  reg [31:0] next_pc;
+  reg [ADDR_WIDTH - 1 : 0] next_pc;
 
   // IFU连接的AXI读端口信号
   assign arid = 'b0; // 取指id是0 访存是1
@@ -76,6 +79,9 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
       `endif
       fetch_valid <= 1'b1;
       send_request <= 1'b0;
+
+      //reset prof counter 
+      ifu_fetch_access <= 'b0;
     end else begin
       // 接收来自 ID 阶段的新 PC
       if (accept_new_pc) begin
@@ -98,6 +104,7 @@ module ifu #(parameter DATA_WIDTH = 32, parameter ADDR_WIDTH = 32)(
 
       // 接收 rvalid 数据 
       if (rid == 'h0 && rvalid && rready && rlast) begin
+        ifu_fetch_access <= ifu_fetch_access + 'b1;
         send_request <= 1'b0;
       end
 

@@ -16,7 +16,11 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 
 	input  wb_to_id_valid,
 	output id_to_wb_ready,
-	input  [DATA_WIDTH + REG_ADDR_WIDTH + 1 - 1 : 0] wb_to_id_bus
+	input  [DATA_WIDTH + REG_ADDR_WIDTH + 1 - 1 : 0] wb_to_id_bus,
+
+	input [63:0] ifu_fetch_access,
+	input [63:0] load_success,
+	input [63:0] store_success
 
 );
 	//id_valid
@@ -68,6 +72,13 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 	end
 
 	//recognize the inst
+	reg [63:0] access_memory;
+	reg [63:0] alu;
+	reg [63:0] b;
+	reg [63:0] j;
+	reg [63:0] csr;
+	reg [63:0] mret_ecall;
+
 	wire lb     = inst[6:0] == 7'b0000011 && inst[14:12] == 3'b000;
 	wire lh     = inst[6:0] == 7'b0000011 && inst[14:12] == 3'b001;
 	wire lw     = inst[6:0] == 7'b0000011 && inst[14:12] == 3'b010;
@@ -132,6 +143,33 @@ module idu #(REG_ADDR_WIDTH = 5, ADDR_WIDTH = 32, DATA_WIDTH = 32)(
 					  csrrw | csrrs | ecall | mret |
     				  ebreak ) && id_valid;
 
+	always @(posedge clk) begin
+		if(rst) begin
+			access_memory <= 'b0;
+			alu <= 'b0;
+			b <= 'b0;
+			j <= 'b0;
+			mret_ecall <= 'b0;
+		end else if(id_valid) begin
+			if(lw || lh || lb || lhu || lbu || sw || sh || sb)
+				access_memory <= access_memory + 'b1;
+			else if(beq || bne || blt || bge || bltu || bgeu)
+				b <= b + 'b1;
+			else if(jalr || jal)
+				j <= j + 'b1;
+			else if(csrrw || csrrs)
+				csr <= csr + 'b1;
+			else if(ecall || mret) 
+				mret_ecall <= 'b1;
+			else if(ebreak) begin
+				$display(
+					"ifu fetch inst success:%0d——(load-store:%0d, alu:%0d, b:%0d, j:%0d, csr:%0d, mret-ecall:%0d, ebreak:1)\nload_success:%0d, store_success:%0d\n",
+					ifu_fetch_access,access_memory,alu,b,j,csr,mret_ecall,load_success,store_success
+				);
+			end else if(~inv)
+				alu <= alu + 'b1;
+		end
+	end
 
 	//categorize the inst
 	/*

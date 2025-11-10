@@ -127,6 +127,8 @@ module npc_top(
 	wire                      ifu_rlast;
 	wire [             3 : 0] ifu_rid;
 
+	reg [63:0] ifu_fetch_access;
+
   	ifu #(
   	  .ADDR_WIDTH(ADDR_WIDTH),
   	  .DATA_WIDTH(DATA_WIDTH)
@@ -152,7 +154,8 @@ module npc_top(
 		.arsize(ifu_arsize),
 		.arburst(ifu_arburst),
 		.rlast(ifu_rlast),
-		.rid(ifu_rid)
+		.rid(ifu_rid),
+		.ifu_fetch_access(ifu_fetch_access)
 	);
 
 	wire id_to_exe_valid;
@@ -161,6 +164,9 @@ module npc_top(
 	wire wb_to_id_valid;
 	wire id_to_wb_ready;
 	wire [DATA_WIDTH + REG_ADDR_WIDTH + 1 - 1 : 0] wb_to_id_bus;
+
+	reg [63:0] load_success;
+	reg [63:0] store_success;
 
 	idu #(
 		.REG_ADDR_WIDTH(REG_ADDR_WIDTH),
@@ -180,7 +186,10 @@ module npc_top(
 		.exe_to_id_ready(exe_to_id_ready),
 		.wb_to_id_bus(wb_to_id_bus),
 		.wb_to_id_valid(wb_to_id_valid),
-		.id_to_wb_ready(id_to_wb_ready)
+		.id_to_wb_ready(id_to_wb_ready),
+		.ifu_fetch_access(ifu_fetch_access),
+		.load_success(load_success),
+		.store_success(store_success)
 	);
 
 	wire exe_to_mem_valid;
@@ -257,7 +266,9 @@ module npc_top(
 		.awsize(lsu_awsize),
 		.awburst(lsu_awburst),
 		.wlast(lsu_wlast),
-		.bid(lsu_bid)
+		.bid(lsu_bid),
+		.load_success(load_success),
+		.store_success(store_success)
 	);
 
 	wire mem_to_wb_valid;

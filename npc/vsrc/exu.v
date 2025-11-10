@@ -47,9 +47,10 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 	input  [3:0] bid,
 	output bready,
 	input  [1:0] bresp,
-	input  bvalid
+	input  bvalid,
 
-
+	output reg [63:0] load_success,
+	output reg [63:0] store_success
 );
 	reg exe_valid;
 
@@ -106,6 +107,8 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 			awvalid <= 'b0;
 			send_request_ar_aw <= 'b0;
 			send_request_w <= 'b0;
+			load_success <= 'b0;
+			store_success <= 'b0;
 		end else begin
 			if (id_to_exe_valid && exe_to_id_ready) begin
 				exe_valid <= 'b1;
@@ -146,11 +149,13 @@ module exu #(REG_ADDR_WIDTH = 5, DATA_WIDTH = 32, ADDR_WIDTH = 32)(
 
 			if(rvalid && rready && rid == 'h1 && rlast) begin
 				send_request_ar_aw <= 1'b0;
+				load_success <= load_success + 'b1;
 			end
 
 			if(bvalid && bready && bid == 'h0) begin
 				send_request_ar_aw <= 1'b0;
 				send_request_w <= 1'b0;
+				store_success <= store_success + 'b1;
 			end
 
 			if(exe_to_mem_valid && mem_to_exe_ready) begin
